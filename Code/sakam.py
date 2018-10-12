@@ -38,13 +38,13 @@ from matplotlib.ticker import NullFormatter
 from phot2mass import posterior_mass
 
 ############### DIRECTORIES #########################################
-dir_data        = "/home/jromero/Desktop/Rup147/"
-file_isochrone  = dir_data + "Models/MIST_2.5Gyr_0.4Av_SDSS.csv"
+dir_data        = "../Data/"
+file_isochrone  = dir_data + "MIST_2.5Gyr_SDSS.csv"
 file_data       = dir_data + "members_DANCe.csv"
 
 final_masses    = False
 
-dir_out = dir_data + "Masses/"
+dir_out = "../Masses/"
 if not os.path.isdir(dir_out):
     os.mkdir(dir_out)
 ######################################################################
@@ -90,7 +90,7 @@ isochrone = isochrone.drop_duplicates(subset=covariates[0])
 
 ############################ LOAD DATA ####################################################
 data  = pn.read_csv(file_data,usecols=cols_data,
-                    dtype=types_cols,na_values="99.0",nrows=10)#,skiprows=range(1,222),nrows=4)
+                    dtype=types_cols,na_values="99.0",nrows=1)#,skiprows=range(1,222),nrows=4)
 
 data  = data.dropna(thresh=3*2) # Only objects with at least three bands and their uncertainties
 N     = data.shape[0]
