@@ -35,12 +35,12 @@ from matplotlib import gridspec
 from scipy.interpolate import interp1d
 from astroML.decorators import pickle_results
 from matplotlib.ticker import NullFormatter
-from phot2mass import posterior_mass
+from abs2mass import posterior_mass
 
 ############### DIRECTORIES #########################################
 dir_data        = "../Data/"
 file_isochrone  = dir_data + "MIST_2.5Gyr_SDSS.csv"
-file_data       = dir_data + "members_DANCe.csv"
+file_data       = dir_data + "Absolute_Magnitudes_DANCe.csv"
 
 final_masses    = False
 
@@ -73,10 +73,11 @@ types_cols   = dict([(i, types(i)) for i in cols_data])
 ######################## EMCEE parameters ################
 N_iter   = 2000
 nwalkers = 30
+npar     = 5
 prior    = "Half-Cauchy" # Prior for the mass
-#------ location and scale of the distance module prior
-loc_mu   = 7.45
-scale_mu = 0.2
+#------ location and scale of the extinction prior
+loc_nu   = 7.45
+scale_nu = 0.2
 
 ##########################################################
 
@@ -125,9 +126,9 @@ print("The range of masses is [{0},{1}].".format(min_mass,max_mass))
 ###########################################################################################
 ###### LOOP OVER STARS TO INFER MASSS
 ############################################################################################
-maps      = np.zeros((N,6))
+maps      = np.zeros((N,npar))
 times     = np.zeros(N)
-cis       = np.zeros((N,2,6))
+cis       = np.zeros((N,2,npar))
 acc_fcs   = np.zeros(N)
 print("Sampling the posterior ...")
 
@@ -152,7 +153,7 @@ for i in range(N):
     uncert = np.array(data.loc[i,uncertainty],dtype=np.float64)
 
     #------ Initialize the module --------
-    Module = posterior_mass(datum,uncert,loc_mu=loc_mu,scale_mu=scale_mu,
+    Module = posterior_mass(datum,uncert,loc_nu=loc_nu,scale_nu=scale_nu,
             N_bands=N_bands,mass2phot=mass2phot,nwalkers=nwalkers,
             prior_mass=prior,min_mass=min_mass,max_mass=max_mass,
             burnin_frac=0.25)
@@ -219,7 +220,7 @@ for i in range(N):
     # Corner plot
     sample  = sample.reshape([sample.shape[0]*sample.shape[1], sample.shape[2]])
     fig = plt.figure()
-    figure = corner.corner(sample, labels=[r"Mass $[\mathrm{M_{\odot}}]$", r"$\mu$", r"$Pb$", r"$Yb$",r"$Vb$",r"$V$"],
+    figure = corner.corner(sample, labels=[r"Mass $[\mathrm{M_{\odot}}]$", r"$\nu$", r"$Pb$", r"$Yb$",r"$Vb$",r"$V$"],
                quantiles=[0.025, 0.5, 0.975],
                show_titles=True, title_kwargs={"fontsize": 12})
     pdf.savefig(bbox_inches='tight')  # saves the current figure into a pdf page
