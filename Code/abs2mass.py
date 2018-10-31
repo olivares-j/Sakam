@@ -28,12 +28,12 @@ class posterior_mass:
 	This class provides flexibility to infer the posterior distribution of the mass given the absolute magnitudes
 	It also infers the extinction nu
 	"""
-	def __init__(self,datum,uncert,N_bands,mass2phot,nwalkers=12,prior_mass="Uniform",min_mass=0.1,max_mass=10,
+	def __init__(self,observed,uncert,N_bands,mass2phot,nwalkers=12,prior_mass="Uniform",min_mass=0.1,max_mass=10,
 					burnin_frac=0.2):
 
 		self.nwalkers    = nwalkers
 		self.burnin_frac = burnin_frac
-		self.ndim        = 6
+		self.ndim        = 5
 		self.max_mass    = max_mass
 		self.min_mass    = min_mass
 		self.N_bands     = N_bands
@@ -42,8 +42,8 @@ class posterior_mass:
 
 
 		#------------------------------------------------------
-		idx     = np.ix_(np.where(np.isfinite(datum))[0])
-		o_phot  = datum[idx]
+		idx     = np.ix_(np.where(np.isfinite(observed))[0])[0]
+		o_phot  = observed[idx]
 		u_phot  = uncert[idx]
 
 		self.idx = idx
@@ -70,13 +70,13 @@ class posterior_mass:
 		if prior_mass=="Uniform" :
 			def lnprior(theta):
 				uniform_mass = st.uniform.logpdf(theta[0],loc=min_mass,scale=max_mass-min_mass)
-				uniform_aux  = log_prior_nu_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4],theta[5])
+				uniform_aux  = log_prior_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4])
 				return(uniform_mass+uniform_aux)
 
 		if prior_mass=="Half-Cauchy" :
 			def lnprior(theta):
 				pri_mass = st.halfcauchy.logpdf(theta[0],loc=0.0,scale=100.0)
-				pri_aux  = log_prior_nu_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4],theta[5])
+				pri_aux  = log_prior_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4])
 				return(pri_mass+pri_aux)
 
 		self.pos0 = [np.array([st.norm.rvs(loc=min_mass + 0.5*(max_mass-min_mass),scale=0.1,size=1)[0],
@@ -143,5 +143,7 @@ class posterior_mass:
 		CI  = np.percentile(sample,axis=(0,1),q=[2.5,97.5])
 		#------ autocorrelation time
 		int_time = emcee.autocorr.integrated_time(sample[:,:,0].flatten(),axis=0)#,c=1)
+		#--------- Flatten sample ------------------------
+		sample = sample.reshape((sample.shape[0]*sample.shape[1],self.ndim)).T
 
 		return MAP,Mean,SD,CI,int_time,sample,np.mean(sampler.acceptance_fraction)

@@ -38,26 +38,39 @@ from matplotlib.ticker import NullFormatter
 from abs2mass import posterior_mass
 
 ############### DIRECTORIES #########################################
-dir_data        = "../Data/"
-file_isochrone  = dir_data + "MIST_2.5Gyr_SDSS.csv"
-file_data       = dir_data + "Absolute_Magnitudes_DANCe.csv"
+dir_data        = "/home/jromero/Desktop/Rup147/"
+file_isochrone  = dir_data + "Models/COLIBRI_2.5Gyr.csv"
+file_data       = dir_data + "Absolute_Magnitudes_unified.csv"
+dir_out         = dir_data + "Masses/COLIBRI/" 
+file_out        = dir_out  + "Masses.h5"
+file_out_csv    = dir_out  + "Masses.csv"
 
 final_masses    = False
 
-dir_out = "../Masses/"
 if not os.path.isdir(dir_out):
     os.mkdir(dir_out)
 ######################################################################
 
 ############################ VARIABLES ##########################
-# covariates   = ['Mini','Mass','g_sdss','BP','r_sdss','G','RP','i_sdss','z_sdss','Y','J','H','Ks','W2','W4']
-# observable   = ['g_sdss','BP','r_sdss','G','RP','i_sdss','z_sdss','Y','J','H','Ks','W2','W4']
-# uncertainty  = ['e_g_sdss','e_BP','e_r_sdss','e_G','e_RP','e_i_sdss','e_z_sdss','e_Y','e_J','e_H','e_Ks','e_W2','e_W4']
-covariates   = ['initial_mass','u_sdss','g_sdss','r_sdss','i_sdss','z_sdss']
-observable   = ['u_sdss','g_sdss','r_sdss','i_sdss','z_sdss']
-uncertainty  = ['e_u_sdss','e_g_sdss','e_r_sdss','e_i_sdss','e_z_sdss']
 identifier   = ['ID']
+variate      = ['Mass']
+covariates   = ['BP','G','RP','u_sdss','g_sdss','r_sdss','i_sdss','z_sdss','Y','J','H','K']
+observable   = ['BP','G','RP','u_sdss','g_sdss','r_sdss','i_sdss','z_sdss','Y','J','H','K']
+uncertainty  = ['e_BP','e_G','e_RP','e_u_sdss','e_g_sdss','e_r_sdss','e_i_sdss','e_z_sdss','e_Y','e_J','e_H','e_K']
+########################################################################################################################
+
+######################## EMCEE parameters ################
+N_iter   = 3000
+nwalkers = 50
+npar     = 5
+prior    = "Half-Cauchy" # Prior for the mass
+##########################################################
+
+
+################################ RED PREPROCESS ############################
+
 cols_data    = sum([identifier,observable,uncertainty],[])
+cols_isoc    = sum([variate,covariates],[])
 
 #----------- types ----------------------------------------
 def types(col_name):
@@ -70,30 +83,24 @@ types_cols   = dict([(i, types(i)) for i in cols_data])
 
 #################################################################
 
-######################## EMCEE parameters ################
-N_iter   = 2000
-nwalkers = 30
-npar     = 5
-prior    = "Half-Cauchy" # Prior for the mass
-#------ location and scale of the extinction prior
-loc_nu   = 7.45
-scale_nu = 0.2
 
-##########################################################
 
 ############################ LOAD ISOCHRONE ########################################################
-'''
-When loading the isochrone select the photometric bands of interest
-'''
-isochrone = pn.read_csv(file_isochrone,usecols=covariates,dtype=np.float64)
-isochrone = isochrone.drop_duplicates(subset=covariates[0])
+isochrone = pn.read_csv(file_isochrone,usecols=cols_isoc,dtype=np.float64)
+isochrone = isochrone.drop_duplicates(subset=variate)
 ####################################################################################################
 
 ############################ LOAD DATA ####################################################
-data  = pn.read_csv(file_data,usecols=cols_data,
-                    dtype=types_cols,na_values="99.0",nrows=1)#,skiprows=range(1,222),nrows=4)
+data  = pn.read_csv(file_data,usecols=cols_data,dtype=types_cols,na_values="99.0")#,nrows=10)
+data  = data.reindex(columns=cols_data)
+#------- index as string ------
+data[cols_data[0]] = data[cols_data[0]].astype('str')
+
+#----- put ID as row name-----
+data.set_index(cols_data[0],inplace=True)
 
 data  = data.dropna(thresh=3*2) # Only objects with at least three bands and their uncertainties
+
 N     = data.shape[0]
 N_bands   = len(observable)
 ############################################################################################
@@ -109,24 +116,15 @@ min_mass  = np.min(isochrone[covariates[0]])
 max_mass  = np.max(isochrone[covariates[0]])
 
 print("The range of masses is [{0},{1}].".format(min_mass,max_mass))
-
-# init2final= interp1d(isochrone[covariates[0]],isochrone[covariates[1]],kind="cubic")
-
-# xmass = np.linspace(min_mass,max_mass,1000)
-# yphot = np.array(mass2phot[8](xmass))
-# pdf = PdfPages(filename=dir_out+"Interpolate_masses.pdf")
-# plt.plot(xmass,yphot,color="grey",label="Model")
-# pdf.savefig(bbox_inches='tight')  # saves the current figure into a pdf page
-# plt.close()
-# pdf.close()
-# sys.exit()
-
 ############################################################################################
 
 ###########################################################################################
 ###### LOOP OVER STARS TO INFER MASSS
 ############################################################################################
+#------------ Intitialize arrays and directory ----------------
+fh5       = h5py.File(file_out,'w') 
 maps      = np.zeros((N,npar))
+medians   = np.zeros((N,npar))
 times     = np.zeros(N)
 cis       = np.zeros((N,2,npar))
 acc_fcs   = np.zeros(N)
@@ -143,37 +141,41 @@ rect_histy = [left_h, bottom, 0.1, height]
 
 #----- start the progress bar ------
 bar = progressbar.ProgressBar(maxval=N).start()
-    
-for i in range(N):
-    # ---- update progress bas ----
-    bar.update(i)
+
+i = 0
+for ID,datum in data.iterrows():
     #----------------
-    ID     = data[identifier].values[i][0]
-    datum  = np.array(data.loc[i,observable],dtype=np.float64)
-    uncert = np.array(data.loc[i,uncertainty],dtype=np.float64)
+    observed  = datum[observable].values
+    uncert    = datum[uncertainty].values
 
     #------ Initialize the module --------
-    Module = posterior_mass(datum,uncert,loc_nu=loc_nu,scale_nu=scale_nu,
+    Module = posterior_mass(observed,uncert,
             N_bands=N_bands,mass2phot=mass2phot,nwalkers=nwalkers,
             prior_mass=prior,min_mass=min_mass,max_mass=max_mass,
             burnin_frac=0.25)
     #------- run the module ----------------------------
-    MAP,Mean,SD,CI,int_time,sample,mean_acceptance_fraction = Module.run(N_iter=N_iter)
+    MAP,Median,SD,CI,int_time,sample,mean_acceptance_fraction = Module.run(N_iter=N_iter)
 
+    #------- Save sample -----
+    dset = fh5.create_dataset(str(ID), data=sample)
+    fh5.flush()
+
+    #---- populate arrays----
     maps[i,:]      = MAP
+    medians[i,:]   = Median
     times[i]       = int_time
     cis[i,:,:]     = CI
     acc_fcs[i]     = mean_acceptance_fraction
 
     pdf = PdfPages(filename=dir_out+"Object_{0}.pdf".format(str(ID)))
-    y_min,y_max= 0.95*np.min(sample[:,:,0]),1.05*np.max(sample[:,:,0])
+    y_min,y_max= 0.95*np.min(sample[0]),1.05*np.max(sample[0])
 
     fig = plt.figure(221, figsize=(10, 10))
     ax0 = fig.add_subplot(223, position=rect_scatter)
     ax0.set_xlabel("Iteration")
     ax0.set_ylabel(r"Mass $[\mathrm{M_{\odot}}]$")
     ax0.set_ylim(y_min,y_max)
-    ax0.plot(sample[:,:,0].T, '-', color='k', alpha=0.3,linewidth=0.3)
+    ax0.plot(sample[0], '-', color='k', alpha=0.3,linewidth=0.3)
     ax0.axhline(MAP[0],  color='blue',ls="-",linewidth=0.5,label="MAP")
     ax0.axhline(CI[0,0], color='blue',ls=":",linewidth=0.5,label="CI 95%")
     ax0.axhline(CI[1,0], color='blue',ls=":",linewidth=0.5)
@@ -195,7 +197,7 @@ for i in range(N):
     ax1.yaxis.set_major_formatter(nullfmt)
     ax1.yaxis.set_minor_formatter(nullfmt)
 
-    ax1.hist(sample[:,:,0].flatten(),bins=100,density=True, 
+    ax1.hist(sample[0],bins=100,density=True, 
         color="k",orientation='horizontal', fc='none', histtype='step',lw=0.5)
     pdf.savefig(bbox_inches='tight')  # saves the current figure into a pdf page
     plt.close()
@@ -206,7 +208,7 @@ for i in range(N):
     x  = np.arange(N_bands)
 
     plt.scatter(x,true_phot,color="grey",label="Model")
-    plt.errorbar(x,datum,yerr=uncert,fmt=".",label="Observed")
+    plt.errorbar(x,observed,yerr=uncert,fmt=".",label="Observed")
     plt.xticks(x,observable,rotation='vertical')
     plt.margins(0.2)
     # Tweak spacing to prevent clipping of tick-labels
@@ -218,9 +220,8 @@ for i in range(N):
     plt.close()
 
     # Corner plot
-    sample  = sample.reshape([sample.shape[0]*sample.shape[1], sample.shape[2]])
     fig = plt.figure()
-    figure = corner.corner(sample, labels=[r"Mass $[\mathrm{M_{\odot}}]$", r"$\nu$", r"$Pb$", r"$Yb$",r"$Vb$",r"$V$"],
+    figure = corner.corner(sample.T, labels=[r"Mass $[\mathrm{M_{\odot}}]$", r"$Pb$", r"$Yb$",r"$Vb$",r"$V$"],
                quantiles=[0.025, 0.5, 0.975],
                show_titles=True, title_kwargs={"fontsize": 12})
     pdf.savefig(bbox_inches='tight')  # saves the current figure into a pdf page
@@ -230,23 +231,29 @@ for i in range(N):
     
     if final_masses :
         #transform initial masses to final masses
-        sample[:,:,0] = init2final(sample[:,:,0])
+        sample[0]     = init2final(sample[0])
         MAP[0]        = init2final(MAP[0])
         Mean[0]       = init2final(Mean[0])
 
-    #----------- Saves to H5 file -----------------------------------------------
-    with h5py.File(dir_out+"Object_{0}.h5".format(str(ID)), 'w') as hf:
-        hf.create_dataset('MAP',    data=MAP)
-        hf.create_dataset('mean',   data=Mean)
-        hf.create_dataset('SD',     data=SD)
-        hf.create_dataset('CI',     data=CI)
-        hf.create_dataset('sample', data=sample)
-
+    #----- update bar ----
+    bar.update(i+1)
+    i += 1
+fh5.close()
 
 print("Acceptance fraction statistics:")
 print("Min.: {0:.3f}, Mean: {1:.3f}, Max.: {2:.3f}".format(np.min(acc_fcs),np.mean(acc_fcs),np.max(acc_fcs)))
 
 print("Autocorrelation times statistics:")
 print("Min.: {0:.3f}, Mean: {1:.3f}, Max.: {2:.3f}".format(np.min(times),np.mean(times),np.max(times)))
+
+#---------- return data frame----
+data_out = pn.DataFrame(np.column_stack((data.index,maps[:,0],medians[:,0],
+    cis[:,0,0],cis[:,1,0],times)),
+        columns=[identifier[0],'map_mass',
+        'median_mass',
+        'ci_low_distance','ci_up_distance',
+        'integrated_autocorr_time'])
+
+data_out.to_csv(path_or_buf=file_out_csv,index=False)
 
 
