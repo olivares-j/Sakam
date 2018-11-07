@@ -42,7 +42,7 @@ class posterior_mass:
 		self.a           = 2.0
 
 		self.max_extinction = 10.0
-		self.scl_extinction = 1.0
+		self.scl_extinction = 10.0
 
 
 		#------------------------------------------------------
@@ -65,11 +65,11 @@ class posterior_mass:
 			Half-Cauchy  prior for Vb scale of 10 
 			Half-Cauchy  prior for V scale of 10 
 			'''
-			lp_Av = st.halfcauchy.logpdf(Av,loc=1e-6,scale=1)
-			lp_Pb = st.truncnorm.logpdf(Pb,a=0.0,b=1.0,loc=0,scale=self.scl_extinction)
+			lp_Av = st.halfcauchy.logpdf(Av,loc=1e-6,scale=self.scl_extinction)
+			lp_Pb = st.uniform.logpdf(Pb,loc=0,scale=1.0)
 			lp_Yb = st.norm.logpdf(Yb,loc=np.mean(o_phot),scale=5.0*np.std(o_phot))
 			lp_Vb = st.halfcauchy.logpdf(Vb,loc=1e-3,scale=10)
-			lp_V  = st.halfcauchy.logpdf(V,loc=1e-6,scale=10)
+			lp_V  = st.halfcauchy.logpdf(V,loc=1e-6,scale=1)
 			return lp_Av+lp_Pb + lp_Yb + lp_Vb + lp_V
 
 
@@ -86,10 +86,10 @@ class posterior_mass:
 				return(pri_mass+pri_aux)
 
 		self.pos0 = [np.array([st.norm.rvs(loc=min_variate + 0.5*(max_variate-min_variate),scale=0.1,size=1)[0],
-				st.uniform.rvs(loc=0,scale=2,size=1)[0],
-                st.uniform.rvs(loc=0,scale=0.1,size=1)[0],
-                st.uniform.rvs(loc=0,scale=30,size=(1))[0],
-                st.uniform.rvs(loc=1e-3,scale=10,size=(1))[0],
+				st.uniform.rvs(loc=0,scale=0.1,size=1)[0],
+                st.uniform.rvs(loc=0,scale=0.01,size=1)[0],
+                st.norm.rvs(loc=np.mean(o_phot),scale=np.std(o_phot),size=(1))[0],
+                st.uniform.rvs(loc=1e-3,scale=0.1,size=(1))[0],
                 st.uniform.rvs(loc=1e-6,scale=0.1,size=(1))[0]]) for i in range(self.nwalkers)]
 
 		self.lnprior = lnprior

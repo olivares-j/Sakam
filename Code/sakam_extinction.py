@@ -38,15 +38,14 @@ import pandas as pn
 import progressbar
 
 from scipy.interpolate import interp1d
-from astroML.decorators import pickle_results
 from matplotlib.ticker import NullFormatter
 from abs2mass_extinction import posterior_mass
 
 ############### DIRECTORIES #########################################
 dir_data        = "/home/jromero/Desktop/Rup147/"
-file_isochrone  = dir_data + "Models/MIST_2.5Gyr.csv"
+file_isochrone  = dir_data + "Models/COLIBRI_2.5Gyr.csv"
 file_data       = dir_data + "Absolute_Magnitudes_All-WD.csv"
-dir_out         = dir_data + "IMasses/MIST/" 
+dir_out         = dir_data + "IMasses/COLIBRI/" 
 file_out        = dir_out  + "Masses.h5"
 file_out_csv    = dir_out  + "Masses.csv"
 
@@ -55,29 +54,29 @@ if not os.path.isdir(dir_out):
 ######################################################################
 
 ########################### VARIABLES COLIBRI ##########################
-# identifier   = ['ID_member']
-# variate      = ['Mini']
-# covariates   = ['BP','G','RP','u_sdss','g_sdss','r_sdss','i_sdss','z_sdss','Y','J','H','K']
-# observable   = ['BP','G','RP','u_sdss','g_sdss','r_sdss','i_sdss','z_sdss','Y','J','H','Ks']
-# uncertainty  = ['e_BP','e_G','e_RP','e_u_sdss','e_g_sdss','e_r_sdss','e_i_sdss','e_z_sdss','e_Y','e_J','e_H','e_Ks']
-# #----------- The following value transforms the visual extinction to each of the bands --------
-# av2al        = [1.067,0.859,0.6519,1.56906,1.20585,0.87122,0.68319,0.49246,0.38547,0.28887,0.18353,0.11509]
+identifier   = ['ID_member']
+variate      = ['Mini']
+covariates   = ['BP','G','RP','g_sdss','r_sdss','i_sdss','z_sdss','Y','J','H','K']
+observable   = ['BP','G','RP','g_sdss','r_sdss','i_sdss','z_sdss','Y','J','H','Ks']
+uncertainty  = ['e_BP','e_G','e_RP','e_g_sdss','e_r_sdss','e_i_sdss','e_z_sdss','e_Y','e_J','e_H','e_Ks']
+#----------- The following value transforms the visual extinction to each of the bands --------
+av2al        = [1.067,0.859,0.6519,1.20585,0.87122,0.68319,0.49246,0.38547,0.28887,0.18353,0.11509]
 ########################################################################################################################
 
 # ############################ VARIABLES MIST ##########################
-identifier   = ['ID_member']
-variate      = ['initial_mass']
-covariates   = ['BP','G','RP','u_sdss','g_sdss','r_sdss','i_sdss','z_sdss','J','H','K']
-observable   = ['BP','G','RP','u_sdss','g_sdss','r_sdss','i_sdss','z_sdss','J','H','Ks']
-uncertainty  = ['e_BP','e_G','e_RP','e_u_sdss','e_g_sdss','e_r_sdss','e_i_sdss','e_z_sdss','e_J','e_H','e_Ks']
-#----------- The following value transforms the visual extinction to each of the bands --------
-av2al        = [1.067,0.859,0.6519,1.56906,1.20585,0.87122,0.68319,0.49246,0.28887,0.18353,0.11509]
+# identifier   = ['ID_member']
+# variate      = ['initial_mass']
+# covariates   = ['BP','G','RP','g_sdss','r_sdss','i_sdss','z_sdss','J','H','K']
+# observable   = ['BP','G','RP','g_sdss','r_sdss','i_sdss','z_sdss','J','H','Ks']
+# uncertainty  = ['e_BP','e_G','e_RP','e_g_sdss','e_r_sdss','e_i_sdss','e_z_sdss','e_J','e_H','e_Ks']
+# #----------- The following value transforms the visual extinction to each of the bands --------
+# av2al        = [1.067,0.859,0.6519,1.20585,0.87122,0.68319,0.49246,0.28887,0.18353,0.11509]
 # # ########################################################################################################################
 
 
 
 ######################## EMCEE parameters ################
-N_iter   = 5000
+N_iter   = 2000
 nwalkers = 30
 npar     = 6
 prior    = "Half-Cauchy" # Prior for the mass
