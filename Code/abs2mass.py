@@ -29,7 +29,7 @@ class posterior_mass:
 	It also infers the extinction nu
 	"""
 	def __init__(self,observed,uncert,N_bands,mass2phot,nwalkers=12,prior_mass="Uniform",min_mass=0.1,max_mass=10,
-					burnin_frac=0.2):
+					burnin_frac=0.2,quantiles=[2.5,97.5]):
 
 		self.nwalkers    = nwalkers
 		self.burnin_frac = burnin_frac
@@ -38,7 +38,8 @@ class posterior_mass:
 		self.min_mass    = min_mass
 		self.N_bands     = N_bands
 		self.mass2phot   = mass2phot
-		self.a           = 3.5
+		self.a           = 2.0
+		self.quantiles   = quantiles
 
 
 		#------------------------------------------------------
@@ -63,7 +64,7 @@ class posterior_mass:
 			lp_Pb = st.truncnorm.logpdf(Pb,a=0.0,b=1.0,loc=0,scale=1.0)
 			lp_Yb = st.norm.logpdf(Yb,loc=np.mean(o_phot),scale=5.0*np.std(o_phot))
 			lp_Vb = st.halfcauchy.logpdf(Vb,loc=1e-3,scale=10)
-			lp_V  = st.halfcauchy.logpdf(V,loc=1e-6,scale=10)
+			lp_V  = st.halfcauchy.logpdf(V,loc=1e-6,scale=1)
 			return lp_Pb + lp_Yb + lp_Vb + lp_V
 
 
@@ -79,10 +80,10 @@ class posterior_mass:
 				pri_aux  = log_prior_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4])
 				return(pri_mass+pri_aux)
 
-		self.pos0 = [np.array([st.norm.rvs(loc=min_mass + 0.5*(max_mass-min_mass),scale=0.1,size=1)[0],
-                st.uniform.rvs(loc=0,scale=0.1,size=1)[0],
-                st.uniform.rvs(loc=0,scale=30,size=(1))[0],
-                st.uniform.rvs(loc=1e-3,scale=10,size=(1))[0],
+		self.pos0 = [np.array([st.norm.rvs(loc=min_mass + 0.2*(max_mass-min_mass),scale=0.05,size=1)[0],
+                st.uniform.rvs(loc=0,scale=0.01,size=1)[0],
+                st.norm.rvs(loc=np.mean(o_phot),scale=0.5*np.std(o_phot),size=(1))[0],
+                st.uniform.rvs(loc=1e-3,scale=0.1,size=(1))[0],
                 st.uniform.rvs(loc=1e-6,scale=0.1,size=(1))[0]]) for i in range(self.nwalkers)]
 
 		self.lnprior = lnprior
@@ -105,8 +106,8 @@ class posterior_mass:
 
 	    t_phot    = true_phot[self.idx]
 
-	    good = (1-Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2+V)))*np.exp(-0.5*((self.obs-t_phot)**2)/(2.0*(self.unc**2 + V)))
-	    bad  = (Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2 + Vb)))*np.exp(-0.5*((self.obs-Yb)**2)/(2.0*(self.unc**2 + Vb))) +1e-200
+	    good = (1-Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2+V)))*np.exp(-((self.obs-t_phot)**2)/(2.0*(self.unc**2 + V)))
+	    bad  = (Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2 + Vb)))*np.exp(-((self.obs-Yb)**2)/(2.0*(self.unc**2 + Vb))) +1e-200
 	    
 	    return(np.sum(np.log(good+bad)))
 
@@ -140,10 +141,8 @@ class posterior_mass:
 		#----- SD ------
 		SD  = np.std(sample,axis=(0,1))
 		#---- CI 95% and median ---------
-		CI  = np.percentile(sample,axis=(0,1),q=[2.5,97.5])
+		CI  = np.percentile(sample,axis=(0,1),q=self.quantiles)
 		#------ autocorrelation time
-		int_time = emcee.autocorr.integrated_time(sample[:,:,0].flatten(),axis=0)#,c=1)
-		#--------- Flatten sample ------------------------
-		sample = sample.reshape((sample.shape[0]*sample.shape[1],self.ndim)).T
+		int_time = emcee.autocorr.integrated_time(sample[:,:,0].flatten(),axis=0)
 
 		return MAP,Mean,SD,CI,int_time,sample,np.mean(sampler.acceptance_fraction)

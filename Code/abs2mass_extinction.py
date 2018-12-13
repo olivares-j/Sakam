@@ -29,7 +29,7 @@ class posterior_mass:
 	It also infers the extinction nu
 	"""
 	def __init__(self,observed,uncert,N_bands,mass2phot,av2al,nwalkers=12,prior_mass="Uniform",min_variate=0.1,max_variate=10,
-					burnin_frac=0.2):
+					burnin_frac=0.2,quantiles=[2.5,97.5]):
 
 		self.nwalkers    = nwalkers
 		self.burnin_frac = burnin_frac
@@ -40,6 +40,7 @@ class posterior_mass:
 		self.mass2phot   = mass2phot
 		self.av2al       = av2al
 		self.a           = 2.0
+		self.quantiles   = quantiles
 
 		self.max_extinction = 10.0
 		self.scl_extinction = 10.0
@@ -85,10 +86,10 @@ class posterior_mass:
 				pri_aux  = log_prior_Av_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4],theta[5])
 				return(pri_mass+pri_aux)
 
-		self.pos0 = [np.array([st.norm.rvs(loc=min_variate + 0.5*(max_variate-min_variate),scale=0.1,size=1)[0],
+		self.pos0 = [np.array([st.norm.rvs(loc=min_variate + 0.2*(max_variate-min_variate),scale=0.05,size=1)[0],
 				st.uniform.rvs(loc=0,scale=0.1,size=1)[0],
                 st.uniform.rvs(loc=0,scale=0.01,size=1)[0],
-                st.norm.rvs(loc=np.mean(o_phot),scale=np.std(o_phot),size=(1))[0],
+                st.norm.rvs(loc=np.mean(o_phot),scale=0.5*np.std(o_phot),size=(1))[0],
                 st.uniform.rvs(loc=1e-3,scale=0.1,size=(1))[0],
                 st.uniform.rvs(loc=1e-6,scale=0.1,size=(1))[0]]) for i in range(self.nwalkers)]
 
@@ -115,8 +116,8 @@ class posterior_mass:
 
 	    t_phot    = redden_phot[self.idx]
 
-	    good = (1-Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2+V)))*np.exp(-0.5*((self.obs-t_phot)**2)/(2.0*(self.unc**2 + V)))
-	    bad  = (Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2 + Vb)))*np.exp(-0.5*((self.obs-Yb)**2)/(2.0*(self.unc**2 + Vb))) +1e-200
+	    good = (1-Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2+V)))*np.exp(-((self.obs-t_phot)**2)/(2.0*(self.unc**2 + V)))
+	    bad  = (Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2 + Vb)))*np.exp(-((self.obs-Yb)**2)/(2.0*(self.unc**2 + Vb))) +1e-200
 	    
 	    return(np.sum(np.log(good+bad)))
 
@@ -151,7 +152,7 @@ class posterior_mass:
 		#----- SD ------
 		SD  = np.std(sample,axis=(0,1))
 		#---- CI 95% and median ---------
-		CI  = np.percentile(sample,axis=(0,1),q=[2.5,97.5])
+		CI  = np.percentile(sample,axis=(0,1),q=self.quantiles)
 		#------ autocorrelation time
 		int_time = emcee.autocorr.integrated_time(sample[:,:,0].flatten(),axis=0)#,c=1)
 

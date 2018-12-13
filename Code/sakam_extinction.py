@@ -75,12 +75,13 @@ av2al        = [1.067,0.859,0.6519,1.20585,0.87122,0.68319,0.49246,0.38547,0.288
 
 
 
-######################## EMCEE parameters ################
+######################## Parameters ################
 N_iter   = 2000
 nwalkers = 30
 npar     = 6
 prior    = "Half-Cauchy" # Prior for the mass
 name_parameters = [r"Mass $[\mathrm{M_{\odot}}]$",r"Av", r"$Pb$", r"$Yb$",r"$Vb$",r"$V$"]
+quantiles = [16,84]
 ##########################################################
 
 
@@ -174,6 +175,7 @@ for ID,datum in data.iterrows():
             av2al=av2al,
             nwalkers=nwalkers,
             prior_mass=prior,min_variate=min_variate,max_variate=max_variate,
+            quantiles=quantiles,
             burnin_frac=0.25)
     #------- run the module ----------------------------
     MAP,Median,SD,CI,int_time,sample,mean_acceptance_fraction = Module.run(N_iter=N_iter)
@@ -202,7 +204,7 @@ for ID,datum in data.iterrows():
     ax0.set_ylim(y_min,y_max)
     ax0.plot(sample[:,:,0].T, '-', color='black', alpha=0.3,linewidth=0.3)
     ax0.axhline(MAP[0],  color='blue',ls="-",linewidth=0.5,label="MAP")
-    ax0.axhline(CI[0,0], color='blue',ls=":",linewidth=0.5,label="CI 95%")
+    ax0.axhline(CI[0,0], color='blue',ls=":",linewidth=0.5,label="CI")
     ax0.axhline(CI[1,0], color='blue',ls=":",linewidth=0.5)
     ax0.legend(loc="upper left",ncol=4,fontsize=4)
 
@@ -247,7 +249,7 @@ for ID,datum in data.iterrows():
     # Corner plot
     fig = plt.figure()
     figure = corner.corner(sample_flatten.T, labels=name_parameters,
-               quantiles=[0.025, 0.5, 0.975],
+               quantiles=quantiles,
                show_titles=True, title_kwargs={"fontsize": 12})
     pdf.savefig(bbox_inches='tight')  # saves the current figure into a pdf page
     plt.close() 

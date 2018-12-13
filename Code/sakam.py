@@ -59,11 +59,12 @@ observable   = ['BP','G','RP','u_sdss','g_sdss','r_sdss','i_sdss','z_sdss','Y','
 uncertainty  = ['e_BP','e_G','e_RP','e_u_sdss','e_g_sdss','e_r_sdss','e_i_sdss','e_z_sdss','e_Y','e_J','e_H','e_K']
 ########################################################################################################################
 
-######################## EMCEE parameters ################
+######################## Parameters ################
 N_iter   = 3000
 nwalkers = 50
 npar     = 5
 prior    = "Half-Cauchy" # Prior for the mass
+quantiles = [16,84]
 ##########################################################
 
 
@@ -152,6 +153,7 @@ for ID,datum in data.iterrows():
     Module = posterior_mass(observed,uncert,
             N_bands=N_bands,mass2phot=mass2phot,nwalkers=nwalkers,
             prior_mass=prior,min_mass=min_mass,max_mass=max_mass,
+            quantiles=quantiles,
             burnin_frac=0.25)
     #------- run the module ----------------------------
     MAP,Median,SD,CI,int_time,sample,mean_acceptance_fraction = Module.run(N_iter=N_iter)
@@ -177,7 +179,7 @@ for ID,datum in data.iterrows():
     ax0.set_ylim(y_min,y_max)
     ax0.plot(sample[0], '-', color='k', alpha=0.3,linewidth=0.3)
     ax0.axhline(MAP[0],  color='blue',ls="-",linewidth=0.5,label="MAP")
-    ax0.axhline(CI[0,0], color='blue',ls=":",linewidth=0.5,label="CI 95%")
+    ax0.axhline(CI[0,0], color='blue',ls=":",linewidth=0.5,label="CI")
     ax0.axhline(CI[1,0], color='blue',ls=":",linewidth=0.5)
     ax0.legend(loc="upper left",ncol=4,fontsize=4)
 
@@ -222,7 +224,7 @@ for ID,datum in data.iterrows():
     # Corner plot
     fig = plt.figure()
     figure = corner.corner(sample.T, labels=[r"Mass $[\mathrm{M_{\odot}}]$", r"$Pb$", r"$Yb$",r"$Vb$",r"$V$"],
-               quantiles=[0.025, 0.5, 0.975],
+               quantiles=quantiles,
                show_titles=True, title_kwargs={"fontsize": 12})
     pdf.savefig(bbox_inches='tight')  # saves the current figure into a pdf page
     plt.close() 
