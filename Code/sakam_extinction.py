@@ -231,7 +231,7 @@ for ID,datum in data.iterrows():
 
     plt.figure()
     idx     = np.ix_(np.where(np.isfinite(datum))[0])
-    true_phot = np.array([mass2phot[j](MAP[0]) for j in range(N_bands)]) + MAP[1]
+    true_phot = np.array([mass2phot[j](MAP[0]) for j in range(N_bands)]) + MAP[1]*av2al
     x  = np.arange(N_bands)
 
     plt.scatter(x,true_phot,color="grey",label="Model")
