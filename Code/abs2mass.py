@@ -18,8 +18,7 @@ This file is part of Sakam.
 '''
 from __future__ import absolute_import,division,print_function
 import sys
-import myemcee as emcee
-# import emcee
+import emcee
 import numpy as np
 import scipy.stats as st
 
@@ -28,18 +27,22 @@ class posterior_mass:
 	This class provides flexibility to infer the posterior distribution of the mass given the absolute magnitudes
 	It also infers the extinction nu
 	"""
-	def __init__(self,observed,uncert,N_bands,mass2phot,nwalkers=12,prior_mass="Uniform",min_mass=0.1,max_mass=10,
+	def __init__(self,observed,uncert,N_bands,mass2phot,av2al,nwalkers=12,prior_mass="Uniform",min_variate=0.1,max_variate=10,
 					burnin_frac=0.2,quantiles=[2.5,97.5]):
 
 		self.nwalkers    = nwalkers
 		self.burnin_frac = burnin_frac
-		self.ndim        = 5
-		self.max_mass    = max_mass
-		self.min_mass    = min_mass
+		self.ndim        = 6
+		self.max_variate = max_variate
+		self.min_variate = min_variate
 		self.N_bands     = N_bands
 		self.mass2phot   = mass2phot
+		self.av2al       = av2al
 		self.a           = 2.0
 		self.quantiles   = quantiles
+
+		self.max_extinction = 10.0
+		self.scl_extinction = 10.0
 
 
 		#------------------------------------------------------
@@ -50,37 +53,38 @@ class posterior_mass:
 		self.idx = idx
 		self.obs = o_phot
 		self.unc = u_phot
-
-
 		################################# PRIORS ######################################################
 
-		def log_prior_Pb_Yb_Vb(Pb,Yb,Vb,V):
+		def log_prior_Av_Pb_Yb_Vb(Av,Pb,Yb,Vb,V):
 			'''
+			Half-Cauchy for the extinction
 			Uniform prior for Pb between 0 and 1
 			Normal  prior for Yb 
 			Half-Cauchy  prior for Vb scale of 10 
 			Half-Cauchy  prior for V scale of 10 
-		    '''
-			lp_Pb = st.truncnorm.logpdf(Pb,a=0.0,b=1.0,loc=0,scale=1.0)
+			'''
+			lp_Av = st.halfcauchy.logpdf(Av,loc=1e-6,scale=self.scl_extinction)
+			lp_Pb = st.uniform.logpdf(Pb,loc=0,scale=1.0)
 			lp_Yb = st.norm.logpdf(Yb,loc=np.mean(o_phot),scale=5.0*np.std(o_phot))
 			lp_Vb = st.halfcauchy.logpdf(Vb,loc=1e-3,scale=10)
 			lp_V  = st.halfcauchy.logpdf(V,loc=1e-6,scale=1)
-			return lp_Pb + lp_Yb + lp_Vb + lp_V
+			return lp_Av+lp_Pb + lp_Yb + lp_Vb + lp_V
 
 
 		if prior_mass=="Uniform" :
 			def lnprior(theta):
-				uniform_mass = st.uniform.logpdf(theta[0],loc=min_mass,scale=max_mass-min_mass)
-				uniform_aux  = log_prior_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4])
+				uniform_mass = st.uniform.logpdf(theta[0],loc=min_variate,scale=max_variate-min_variate)
+				uniform_aux  = log_prior_Av_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4],theta[5])
 				return(uniform_mass+uniform_aux)
 
 		if prior_mass=="Half-Cauchy" :
 			def lnprior(theta):
 				pri_mass = st.halfcauchy.logpdf(theta[0],loc=0.0,scale=100.0)
-				pri_aux  = log_prior_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4])
+				pri_aux  = log_prior_Av_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4],theta[5])
 				return(pri_mass+pri_aux)
 
-		self.pos0 = [np.array([st.norm.rvs(loc=min_mass + 0.2*(max_mass-min_mass),scale=0.05,size=1)[0],
+		self.pos0 = [np.array([st.norm.rvs(loc=min_variate + 0.2*(max_variate-min_variate),scale=0.05,size=1)[0],
+				st.uniform.rvs(loc=0,scale=0.1,size=1)[0],
                 st.uniform.rvs(loc=0,scale=0.01,size=1)[0],
                 st.norm.rvs(loc=np.mean(o_phot),scale=0.5*np.std(o_phot),size=(1))[0],
                 st.uniform.rvs(loc=1e-3,scale=0.1,size=(1))[0],
@@ -97,14 +101,17 @@ class posterior_mass:
 	    This log likelihood depends on the mass, photometry and uncertainty of the later
 	    '''
 	    mass = parameters[0] # The mass of the star
-	    Pb   = parameters[1] # The probability of being an outlier
-	    Yb   = parameters[2] # The mean position of the outlier distribution
-	    Vb   = parameters[3] # The variance of the outlier distribution
-	    V    = parameters[4] # The variance added to the photometry
+	    Av   = parameters[1] # Extinction
+	    Pb   = parameters[2] # The probability of being an outlier
+	    Yb   = parameters[3] # The mean position of the outlier distribution
+	    Vb   = parameters[4] # The variance of the outlier distribution
+	    V    = parameters[5] # The variance added to the photometry
 
 	    true_phot = np.array([self.mass2phot[i](mass) for i in range(self.N_bands)])
 
-	    t_phot    = true_phot[self.idx]
+	    redden_phot = true_phot + Av*self.av2al
+
+	    t_phot    = redden_phot[self.idx]
 
 	    good = (1-Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2+V)))*np.exp(-((self.obs-t_phot)**2)/(2.0*(self.unc**2 + V)))
 	    bad  = (Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2 + Vb)))*np.exp(-((self.obs-Yb)**2)/(2.0*(self.unc**2 + Vb))) +1e-200
@@ -114,10 +121,11 @@ class posterior_mass:
 
 	################ POSTERIOR#######################
 	def lnprob(self,theta):
-		not_good_values = (theta[0] > self.max_mass or theta[0] < self.min_mass or 
-						   theta[1] < 0.0 or theta[1] > 1.0 or 
-						   theta[3] < 1e-3  or theta[3]> 50 or
-						   theta[4] < 1e-6  or theta[4]> 10) 
+		not_good_values = (theta[0] > self.max_variate or theta[0] < self.min_variate or 
+						   theta[1] < 0.0 or theta[1] > self.max_extinction or
+						   theta[2] < 0.0 or theta[2] > 1.0 or 
+						   theta[4] < 1e-3  or theta[4]> 50 or
+						   theta[5] < 1e-6  or theta[5]> 10) 
 		if not_good_values:
 			return(-np.inf)
 
@@ -137,12 +145,12 @@ class posterior_mass:
 		ind_map = np.unravel_index(np.argmax(sampler.lnprobability),np.shape(sampler.lnprobability))
 		MAP  = sampler.chain[ind_map[0],ind_map[1],:]
 		#-----------
-		Mean = np.mean(sample,axis=(0,1))
+		Median = np.median(sample,axis=(0,1))
 		#----- SD ------
 		SD  = np.std(sample,axis=(0,1))
 		#---- CI 95% and median ---------
-		CI  = np.percentile(sample,axis=(0,1),q=self.quantiles)
+		CI  = np.quantile(sample,axis=(0,1),q=self.quantiles)
 		#------ autocorrelation time
-		int_time = emcee.autocorr.integrated_time(sample[:,:,0].flatten(),axis=0)
+		int_time = 1#emcee.autocorr.integrated_time(sample[:,:,0].flatten(),axis=0)#,c=1)
 
-		return MAP,Mean,SD,CI,int_time,sample,np.mean(sampler.acceptance_fraction)
+		return MAP,Median,SD,CI,int_time,sample,np.mean(sampler.acceptance_fraction)

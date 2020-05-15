@@ -1,2 +1,5 @@
 Masses/*
+Data/
 Code/*.pyc
+Code/__pycache__
+Code/old
