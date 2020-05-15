@@ -1,2 +1,2 @@
 # Sakam
-Transform magnitudes to mass using isochrones
+Infer masses from luminosities and isochrones
