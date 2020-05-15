@@ -18,8 +18,8 @@ This file is part of Sakam.
 '''
 from __future__ import absolute_import,division,print_function
 import sys
-import myemcee as emcee
-# import emcee
+# import myemcee as emcee
+import emcee
 import numpy as np
 import scipy.stats as st
 
@@ -54,8 +54,6 @@ class posterior_mass:
 		self.idx = idx
 		self.obs = o_phot
 		self.unc = u_phot
-
-
 		################################# PRIORS ######################################################
 
 		def log_prior_Av_Pb_Yb_Vb(Av,Pb,Yb,Vb,V):
@@ -152,8 +150,8 @@ class posterior_mass:
 		#----- SD ------
 		SD  = np.std(sample,axis=(0,1))
 		#---- CI 95% and median ---------
-		CI  = np.percentile(sample,axis=(0,1),q=self.quantiles)
+		CI  = np.quantile(sample,axis=(0,1),q=self.quantiles)
 		#------ autocorrelation time
-		int_time = emcee.autocorr.integrated_time(sample[:,:,0].flatten(),axis=0)#,c=1)
+		int_time = 1#emcee.autocorr.integrated_time(sample[:,:,0].flatten(),axis=0)#,c=1)
 
 		return MAP,Median,SD,CI,int_time,sample,np.mean(sampler.acceptance_fraction)
