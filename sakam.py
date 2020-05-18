@@ -232,7 +232,7 @@ class Sakam:
 
     def load_data(self,file_data,identifier,bands,errors,nan_threshold=3):
         columns_data = sum([[identifier],bands,errors],[])
-        data         = pd.read_csv(file_data,usecols=columns_data,nrows=2)
+        data         = pd.read_csv(file_data,usecols=columns_data)
         data         = data.reindex(columns=columns_data)
 
         #------- index as string ------
