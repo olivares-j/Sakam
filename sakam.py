@@ -27,6 +27,7 @@ from scipy.interpolate import interp1d
 import h5py
 import corner
 import emcee
+import progressbar
 
 
 #---------------- Matplotlib ----------
@@ -231,7 +232,7 @@ class Sakam:
 
     def load_data(self,file_data,identifier,bands,errors,nan_threshold=3):
         columns_data = sum([[identifier],bands,errors],[])
-        data         = pd.read_csv(file_data,usecols=columns_data)
+        data         = pd.read_csv(file_data,usecols=columns_data,nrows=2)
         data         = data.reindex(columns=columns_data)
 
         #------- index as string ------
@@ -251,7 +252,6 @@ class Sakam:
 
 
     def run(self,iterations=3000,walkers_ratio=4,burnin_fraction=0.3,prior_mass="Chabrier"):
-
         #--------- Use existing sources ------------------
         if os.path.exists(self.file_h5):
             print("Using existing samples")
@@ -262,21 +262,20 @@ class Sakam:
             self.fh5  = h5py.File(self.file_h5,'a')
 
         else:
-            print("Starting from scratch")
             self.fh5  = h5py.File(self.file_h5,'w')
 
+        print("Sampling the posterior")
 
-        print("Sampling the posterior of source: ")
+        bar = progressbar.ProgressBar(maxval=self.N).start()
+        i   = 0
 
         for ID,datum in self.data.iterrows():
-            print("ID: ",ID)
             grp = self.fh5.create_group(ID)
-            #----------------
-            observed  = datum[self.bands].values
-            uncert    = datum[self.errors].values
 
             #------ Initialize the module --------
-            Module = posterior_mass(observed,uncert,
+            Module = posterior_mass(
+                    datum[self.bands].values,
+                    datum[self.errors].values,
                     N_bands=self.n_bands,
                     mass2phot=self.mass2phot,
                     av2al=self.av2al,
@@ -291,23 +290,42 @@ class Sakam:
             #------- run the module -------------------------------------------------------------
             MAP,Median,SD,CI,sample,acceptance_fraction = Module.run(N_iter=iterations)
 
-            #--------- Flatten sample ----------------------------------------------------------
-            sample_flatten = sample.reshape((sample.shape[0]*sample.shape[1],sample.shape[2])).T
-
-            #------- Save sample ------------------------------------
+            #------- Save ------------------------------------
             dset = grp.create_dataset("MAP",    data=MAP)
             dset = grp.create_dataset("Median", data=Median)
             dset = grp.create_dataset("SD",     data=SD)
             dset = grp.create_dataset("CI",     data=CI)
-            dset = grp.create_dataset("sample", data=sample_flatten)
+            dset = grp.create_dataset("sample", data=sample)
+            dset = grp.create_dataset("acc", data=acceptance_fraction)
             self.fh5.flush()
 
-            #---- populate arrays--------------------------------------------
-            print("Acceptance fraction: {0:1.2f}".format(acceptance_fraction))
-
-            self.plot_source(ID,observed,uncert,sample,MAP,CI)
+            #----- update bar ----
+            bar.update(i+1)
+            i += 1
 
         self.fh5.close()
+
+
+    def plots(self,):
+        print("Plotting posterior samples")
+        fh5  = h5py.File(self.file_h5,'r')
+        for ID,datum in self.data.iterrows():
+            grp = fh5.get(ID)
+            MAP     = np.array(grp.get("MAP"))
+            CI      = np.array(grp.get("CI"))
+            sample  = np.array(grp.get("sample"))
+            acc     = np.array(grp.get("acc"))
+
+            if acc < 0.2:
+                print("Warning: source {0} has low acceptance fraction!".format(ID))
+
+            self.plot_source(ID,
+                    datum[self.bands].values,
+                    datum[self.errors].values,
+                    sample,MAP,CI)
+
+        fh5.close()
+
 
     def statistics(self,):
         #----------- Compute statistics -----------------------
@@ -389,14 +407,14 @@ class Sakam:
             true_phot = np.array([self.mass2phot[j](MAP[0]) for j in range(self.n_bands)]) + MAP[1]*self.av2al
             x  = np.arange(self.n_bands)
 
-            plt.scatter(x,true_phot,color="grey",label="Model")
-            plt.errorbar(x,observed,yerr=uncert,fmt=".",label="Observed")
+            # plt.scatter(x,true_phot-true_phot,yerr=,color="grey",label="Model")
+            plt.errorbar(x,observed-true_phot,yerr=uncert,fmt=".",label="Observed")
             plt.xticks(x,self.bands,rotation='vertical')
             plt.margins(0.2)
             # Tweak spacing to prevent clipping of tick-labels
             plt.subplots_adjust(bottom=0.15)
             plt.legend(loc="upper right",fontsize=4)
-            plt.ylabel("Magnitude")
+            plt.ylabel("$\\Delta$ Magnitude (observed-modelled)")
             plt.xlabel("Filter")
             pdf.savefig(bbox_inches='tight')
             plt.close()

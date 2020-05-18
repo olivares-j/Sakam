@@ -14,6 +14,7 @@ conda install -c conda-forge pandas
 conda install -c conda-forge scipy
 conda install -c conda-forge h5py
 conda install -c conda-forge corner
+conda install -c conda-forge progressbar
 conda install -c conda-forge matplotlib
 ```
 Install also [emcee](https://github.com/dfm/emcee) from the repository.

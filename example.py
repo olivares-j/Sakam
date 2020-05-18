@@ -57,5 +57,6 @@ sakam.load_data(file_data=file_data,
                         errors=uncertainties)
 
 sakam.run()
+sakam.plots()
 sakam.statistics()
 
