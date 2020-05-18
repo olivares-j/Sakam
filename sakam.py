@@ -230,9 +230,9 @@ class Sakam:
         self.av2al = np.array(av2al)
 
 
-    def load_data(self,file_data,identifier,bands,errors,nan_threshold=3):
+    def load_data(self,file_data,identifier,bands,errors,nan_threshold=3,*args,**kwargs):
         columns_data = sum([[identifier],bands,errors],[])
-        data         = pd.read_csv(file_data,usecols=columns_data)
+        data         = pd.read_csv(file_data,usecols=columns_data,*args,**kwargs)
         data         = data.reindex(columns=columns_data)
 
         #------- index as string ------
