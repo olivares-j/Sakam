@@ -9,16 +9,10 @@ create a conda environement:
 and activate it with ``conda activate sakam``
 and install the following packages:
 ```
-conda install -c conda-forge numpy
-conda install -c conda-forge pandas
-conda install -c conda-forge scipy
-conda install -c conda-forge h5py
-conda install -c conda-forge corner
-conda install -c conda-forge progressbar
-conda install -c conda-forge matplotlib
+conda install -c conda-forge numpy pandas scipy h5py corner progressbar matplotlib emcee
 ```
-Install also [emcee](https://github.com/dfm/emcee) from the repository.
-Note: The new version has an improved mixing of walkers.
+
+Note: The [emcee](https://github.com/dfm/emcee) version from the repository shows slightly better convergence.
 
 ## How to run:
 --------------

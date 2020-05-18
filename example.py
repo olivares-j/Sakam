@@ -24,7 +24,7 @@ from sakam import Sakam
 
 ############### Files and directories #########################################
 dir_main        = "/home/javier/Cumulos/Taurus/Sakam/"
-dir_main        = "/home/jromero/Cumulos/Taurus/Sakam/"
+dir_main        = "/raid/jromero/OCs/Taurus/Sakam/"
 #---------- Input files --------------------------
 file_isochrone  = dir_main + "colibri_1Myr.csv"
 file_data       = dir_main + "Absolute_magnitudes.csv"
