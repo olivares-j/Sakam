@@ -24,6 +24,7 @@ from sakam import Sakam
 
 ############### Files and directories #########################################
 dir_main        = "/home/javier/Cumulos/Taurus/Sakam/"
+dir_main        = "/home/jromero/Cumulos/Taurus/Sakam/"
 #---------- Input files --------------------------
 file_isochrone  = dir_main + "colibri_1Myr.csv"
 file_data       = dir_main + "Absolute_magnitudes.csv"
@@ -44,6 +45,12 @@ uncertainties  = ['abs_bp_error','abs_g_error','abs_rp_error',
 #----------- The following value transforms the visual extinction to each of the bands --------
 av2al        = [1.06794,0.85926,0.65199,1.16529,0.86813,0.67659,0.51743,0.43092,0.29434,0.18128,0.11838]
 ########################################################################################################################
+#----- Hyperparameters ----------------------
+hyper = {  "alpha_Av":2.0,
+            "beta_Av":1.5,
+            "beta_sd_b":1.0,
+            "beta_sd_m":0.1}
+#-----------------------------
 
 sakam = Sakam(dir_output=dir_main)
 
@@ -52,9 +59,9 @@ sakam.load_isochrone(file_isochrone=file_isochrone,
                         covariates=covariates,
                         av2al=av2al)
 sakam.load_data(file_data=file_data,
-                        identifier=identifier,
-                        bands=observables,
-                        errors=uncertainties)
+                    identifier=identifier,
+                    bands=observables,
+                    errors=uncertainties)
 
 sakam.run()
 sakam.plots()
