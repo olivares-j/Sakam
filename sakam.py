@@ -1,0 +1,467 @@
+'''
+Copyright 2018 Javier Olivares Romero
+
+This file is part of Sakam.
+
+    Sakam is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    PyAspidistra is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Sakam.  If not, see <http://www.gnu.org/licenses/>.
+'''
+#------------ LOAD LIBRARIES -------------------
+from __future__ import absolute_import,division,print_function
+import sys
+import os
+import numpy as np
+import scipy.stats as st
+import random
+import scipy
+import corner
+import h5py
+import pandas as pd
+import progressbar
+import emcee
+from scipy.interpolate import interp1d
+
+#---------------- Matplotlib ----------
+import matplotlib
+matplotlib.use('PDF')
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib import gridspec
+from matplotlib.ticker import NullFormatter
+
+
+############### Files and directories #########################################
+dir_main        = "/home/javier/Cumulos/Stock_2/"
+#---------- Input files --------------------------
+file_isochrone  = dir_main + "COLIBRI.csv"
+file_data       = dir_main + "Absolute_magnitudes.csv"
+#---------- Output files -------------------------------
+dir_out         = dir_main + "Masses/" 
+file_out        = dir_out  + "Masses.h5"
+file_mass_csv   = dir_out  + "Masses.csv"
+file_avs_csv    = dir_out  + "Avs.csv"
+
+#------- Creates directories -------
+if not os.path.exists(dir_out):
+    os.makedirs(dir_out)
+#---------------------------------
+######################################################################
+
+########################### VARIABLES COLIBRI ##########################
+identifier   = ['source_id']
+variate      = ['Mini']
+covariates   = ['G_BPmag','Gmag','G_RPmag',
+                'gP1mag','rP1mag','iP1mag','zP1mag','yP1mag',
+                'Jmag','Hmag','Ksmag']
+observable   = ['abs_BP','abs_G','abs_RP',
+                'abs_gmag','abs_rmag','abs_imag','abs_zmag','abs_ymag',
+                'abs_Jmag','abs_Hmag','abs_Kmag']
+uncertainty  = ['abs_BP_error','abs_G_error','abs_RP_error',
+                'abs_e_gmag','abs_e_rmag','abs_e_imag','abs_e_zmag','abs_e_ymag',
+                'abs_e_Jmag','abs_e_Hmag','abs_e_Kmag']
+#----------- The following value transforms the visual extinction to each of the bands --------
+av2al        = [1.06794,0.85926,0.65199,1.16529,0.86813,0.67659,0.51743,0.43092,0.29434,0.18128,0.11838]
+########################################################################################################################
+
+# ############################ VARIABLES MIST ##########################
+# identifier   = ['ID_member']
+# variate      = ['initial_mass']
+# covariates   = ['BP','G','RP','g_sdss','r_sdss','i_sdss','z_sdss','J','H','K']
+# observable   = ['BP','G','RP','g_sdss','r_sdss','i_sdss','z_sdss','J','H','Ks']
+# uncertainty  = ['e_BP','e_G','e_RP','e_g_sdss','e_r_sdss','e_i_sdss','e_z_sdss','e_J','e_H','e_Ks']
+# #----------- The following value transforms the visual extinction to each of the bands --------
+# av2al        = [1.067,0.859,0.6519,1.20585,0.87122,0.68319,0.49246,0.28887,0.18353,0.11509]
+# # ########################################################################################################################
+
+
+
+class posterior_mass:
+    """
+    This class provides flexibility to infer the posterior distribution of the mass given the absolute magnitudes
+    It also infers the extinction nu
+    """
+    def __init__(self,observed,uncert,N_bands,mass2phot,av2al,walkers_ratio,prior_mass="Uniform",min_variate=0.1,max_variate=10,
+                    burnin_frac=0.2,quantiles=[2.5,97.5]):
+
+        
+        self.burnin_frac = burnin_frac
+        self.ndim        = 6
+        self.nwalkers    = walkers_ratio * self.ndim
+        self.max_variate = max_variate
+        self.min_variate = min_variate
+        self.N_bands     = N_bands
+        self.mass2phot   = mass2phot
+        self.av2al       = av2al
+        self.a           = 2.0
+        self.quantiles   = quantiles
+
+        self.max_extinction = 10.0
+        self.scl_extinction = 10.0
+
+
+        #------------------------------------------------------
+        idx     = np.ix_(np.where(np.isfinite(observed))[0])[0]
+        o_phot  = observed[idx]
+        u_phot  = uncert[idx]
+
+        self.idx = idx
+        self.obs = o_phot
+        self.unc = u_phot
+        ################################# PRIORS ######################################################
+
+        def log_prior_Av_Pb_Yb_Vb(Av,Pb,Yb,Vb,V):
+            '''
+            Half-Cauchy for the extinction
+            Uniform prior for Pb between 0 and 1
+            Normal  prior for Yb 
+            Half-Cauchy  prior for Vb scale of 10 
+            Half-Cauchy  prior for V scale of 10 
+            '''
+            lp_Av = st.halfcauchy.logpdf(Av,loc=1e-6,scale=self.scl_extinction)
+            lp_Pb = st.uniform.logpdf(Pb,loc=0,scale=1.0)
+            lp_Yb = st.norm.logpdf(Yb,loc=np.mean(o_phot),scale=5.0*np.std(o_phot))
+            lp_Vb = st.halfcauchy.logpdf(Vb,loc=1e-3,scale=10)
+            lp_V  = st.halfcauchy.logpdf(V,loc=1e-6,scale=1)
+            return lp_Av+lp_Pb + lp_Yb + lp_Vb + lp_V
+
+
+        if prior_mass=="Uniform" :
+            def lnprior(theta):
+                uniform_mass = st.uniform.logpdf(theta[0],loc=min_variate,scale=max_variate-min_variate)
+                uniform_aux  = log_prior_Av_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4],theta[5])
+                return(uniform_mass+uniform_aux)
+
+        if prior_mass=="Half-Cauchy" :
+            def lnprior(theta):
+                pri_mass = st.halfcauchy.logpdf(theta[0],loc=0.0,scale=100.0)
+                pri_aux  = log_prior_Av_Pb_Yb_Vb(theta[1],theta[2],theta[3],theta[4],theta[5])
+                return(pri_mass+pri_aux)
+
+        self.pos0 = [np.array([st.norm.rvs(loc=min_variate + 0.2*(max_variate-min_variate),scale=0.05,size=1)[0],
+                st.uniform.rvs(loc=0,scale=0.1,size=1)[0],
+                st.uniform.rvs(loc=0,scale=0.01,size=1)[0],
+                st.norm.rvs(loc=np.mean(o_phot),scale=0.5*np.std(o_phot),size=(1))[0],
+                st.uniform.rvs(loc=1e-3,scale=0.1,size=(1))[0],
+                st.uniform.rvs(loc=1e-6,scale=0.1,size=(1))[0]]) for i in range(self.nwalkers)]
+
+        self.lnprior = lnprior
+
+        ############################################################################################
+
+    ############################# LIKELIHOOD ###############################################
+
+    def log_likelihood(self,parameters):
+        '''
+        This log likelihood depends on the mass, photometry and uncertainty of the later
+        '''
+        mass = parameters[0] # The mass of the star
+        Av   = parameters[1] # Extinction
+        Pb   = parameters[2] # The probability of being an outlier
+        Yb   = parameters[3] # The mean position of the outlier distribution
+        Vb   = parameters[4] # The variance of the outlier distribution
+        V    = parameters[5] # The variance added to the photometry
+
+        true_phot = np.array([self.mass2phot[i](mass) for i in range(self.N_bands)])
+
+        redden_phot = true_phot + Av*self.av2al
+
+        t_phot    = redden_phot[self.idx]
+
+        good = (1-Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2+V)))*np.exp(-((self.obs-t_phot)**2)/(2.0*(self.unc**2 + V)))
+        bad  = (Pb)*(1.0/np.sqrt(2.0*np.pi*(self.unc**2 + Vb)))*np.exp(-((self.obs-Yb)**2)/(2.0*(self.unc**2 + Vb))) +1e-200
+        
+        return(np.sum(np.log(good+bad)))
+
+
+    ################ POSTERIOR#######################
+    def lnprob(self,theta):
+        not_good_values = (theta[0] > self.max_variate or theta[0] < self.min_variate or 
+                           theta[1] < 0.0 or theta[1] > self.max_extinction or
+                           theta[2] < 0.0 or theta[2] > 1.0 or 
+                           theta[4] < 1e-3  or theta[4]> 50 or
+                           theta[5] < 1e-6  or theta[5]> 10) 
+        if not_good_values:
+            return(-np.inf)
+
+        return(self.lnprior(theta) + self.log_likelihood(theta))
+
+    #################### RUN THE SAMPLER ####################################
+
+    def run(self,N_iter):
+        sampler = emcee.EnsembleSampler(self.nwalkers,self.ndim, self.lnprob)
+        sampler.a = self.a
+        sampler.run_mcmc(self.pos0,N_iter)
+        # print("Mean acceptance fraction: {0:.3f}".format(np.mean(sampler.acceptance_fraction)))
+
+        sample = sampler.chain[:,int(self.burnin_frac*N_iter):,:]
+
+        #-----MAP ----
+        ind_map = np.unravel_index(np.argmax(sampler.lnprobability),np.shape(sampler.lnprobability))
+        MAP  = sampler.chain[ind_map[0],ind_map[1],:]
+        #-----------
+        Median = np.median(sample,axis=(0,1))
+        #----- SD ------
+        SD  = np.std(sample,axis=(0,1))
+        #---- CI 95% and median ---------
+        CI  = np.quantile(sample,axis=(0,1),q=self.quantiles)
+        #------ autocorrelation time
+        int_time = 1#emcee.autocorr.integrated_time(sample[:,:,0].flatten(),axis=0)#,c=1)
+
+        return MAP,Median,SD,CI,int_time,sample,np.mean(sampler.acceptance_fraction)
+
+class Sakam:
+    def __init__(self,dir_output,
+                quantiles=[0.16,0.84]):
+
+        self.name_parameters = [r"Mass $[\mathrm{M_{\odot}}]$",r"Av", r"$Pb$", r"$Yb$",r"$Vb$",r"$V$"]
+        self.quantiles       = quantiles
+        self.n_parameters    = len(self.name_parameters)
+
+        #-------------- Files --------------------------
+        os.makedirs(dir_output,exit_ok=True)
+        self.file_h5    = dir_output + "/samples.h5"
+        self.file_mass  = dir_output + "/"
+        self.dir_plots  = dir_output + "/Plots"
+        self.file_stats = dir_output + "/statistics.csv"
+        os.makedirs(self.dir_plots,exit_ok=True)
+        
+        
+        #------- Plot parameters ---------------
+        self.nullfmt = plt.NullFormatter()
+        left, width = 0.1, 0.4
+        bottom, height = 0.1, 0.4
+        bottom_h = left_h = left + width + 0.0
+        self.rect_scatter = [left, bottom, width, height]
+        self.rect_histx   = [left, bottom_h, width, 0.4]
+        self.rect_histy   = [left_h, bottom, 0.1, height]
+
+
+    def load_isochrone(self,file_isochrone,variate,covariates,av2al,upper_limit_variate=3.5):
+        cols_isoc    = sum([[variate],covariates],[])
+        
+        print("Loading isochrone")
+        isochrone = pd.read_csv(file_isochrone,usecols=cols_isoc,dtype=np.float64)
+        print("Dropping duplicated values")
+        isochrone = isochrone.drop_duplicates(subset=[variate])
+        print("Dropping variate values larger than upper limit")
+        idx_valid = np.where(isochrone[variate]< upper_limit_variate)[0]
+        isochrone = isochrone.iloc[idx_valid,:]
+        ####################################################################################################
+
+        ########################### INTERPOLATING FUNCTION OF THE MASSS ###########################
+        '''
+        This is intended to give a smooth representation of the mass.
+        For a given value of the mass it returns a set of true photometric values.
+        '''
+
+        self.mass2phot = [interp1d(isochrone[variate],isochrone[cov],kind="cubic") for cov in covariates]
+
+        self.min_variate  = np.min(isochrone[variate])
+        self.max_variate  = np.max(isochrone[variate])
+
+        print("The range of the variate is [{0},{1}].".format(self.min_variate,self.max_variate))
+        ############################################################################################
+
+        self.av2al = np.array(av2al)
+
+
+    def load_data(self,file_data,identifier,bands,errors,nan_threshold=3)
+        colums_data = sum([[identifier],bands,errors],[])
+        data        = pd.read_csv(file_data,usecols=columns_data)
+        data        = data.reindex(columns=columns_data)
+
+        #------- index as string ------
+        data[identifier] = data[identifier].astype('str')
+
+        #----- put ID as row name-----
+        data.set_index(identifier,inplace=True)
+
+        self.data  = data.dropna(thresh=nan_threshold*2) 
+
+        self.N       = self.data.shape[0]
+        self.n_bands = len(bands)
+        self.bands   = bands
+        self.errors  = errors
+        self.identifier = identifier
+        ############################################################################################
+
+
+    def run(self,iterations=1000,walkers_ratio=5)
+
+        #--------- Use existing sources ------------------
+        if os.path.exists(self.file_h5):
+            print("Using existing samples")
+            fh5       = h5py.File(self.file_h5,'r')
+            ids       = fh5.keys()
+            self.data.drop(ids,inplace=True)
+            fh5.close()
+            self.fh5  = h5py.File(self.file_h5,'a')
+
+        else:
+            print("Starting from scratch")
+            self.fh5  = h5py.File(self.file_h5,'w')
+
+
+        print("Sampling the posterior ...")
+
+        #----- start the progress bar ------
+        bar = progressbar.ProgressBar(maxval=self.N).start()
+
+        i = 0
+        for ID,datum in self.data.iterrows():
+            print("ID: ",ID)
+            grp = self.fh5.create_group(ID)
+            #----------------
+            observed  = datum[self.bands].values
+            uncert    = datum[self.errors].values
+
+            #------ Initialize the module --------
+            Module = posterior_mass(observed,uncert,
+                    N_bands=self.n_bands,mass2phot=self.mass2phot,
+                    av2al=self.av2al,
+                    walkers_ratio=walkers_ratio,
+                    prior_mass='Half-Cauchy',
+                    min_variate=self.min_variate,
+                    max_variate=self.max_variate,
+                    quantiles=quantiles,
+                    burnin_frac=0.25)
+
+            #------- run the module -------------------------------------------------------------
+            MAP,Median,SD,CI,int_time,sample,mean_acceptance_fraction = Module.run(N_iter=iterations)
+
+            #--------- Flatten sample ----------------------------------------------------------
+            sample_flatten = sample.reshape((sample.shape[0]*sample.shape[1],sample.shape[2])).T
+
+            #------- Save sample ------------------------------------
+            dset = grp.create_dataset("MAP",    data=MAP)
+            dset = grp.create_dataset("Median", data=Median)
+            dset = grp.create_dataset("SD",     data=SD)
+            dset = grp.create_dataset("CI",     data=CI)
+            dset = grp.create_dataset("sample", data=sample_flatten)
+            self.fh5.flush()
+
+            #---- populate arrays--------------------------------------------
+            print("Acceptance fraction: ",mean_acceptance_fraction)
+
+            self.plot_source(ID,sample,MAP,CI)
+
+            #----- update bar ----
+            bar.update(i+1)
+            i += 1
+        self.fh5.close()
+
+    def statistics(self,):
+        #----------- Compute statistics -----------------------
+        fh5  = h5py.File(self.file_h5,'r')
+        ids  = fh5.keys()
+
+        #------------ Intitialize arrays and directory ----------------
+        N = len(ids)
+        maps      = np.zeros((N,self.n_parameters))
+        medians   = np.zeros((N,self.n_parameters))
+        cis       = np.zeros((N,2,self.n_parameters))
+
+        for i,key in enumerate(ids):
+            grp = fh5.get(key)
+            maps[i]    = np.array(grp.get("MAP"))
+            medians[i] = np.array(grp.get("Median"))
+            cis[i]     = np.array(grp.get("CI"))
+        fh5.close()
+
+        M_tot = np.sum(maps[:,0])
+        M_low = M_tot - np.sum(cis[:,0,0])
+        M_up  = np.sum(cis[:,1,0]) - M_tot
+
+        print("Total mass: {0:3.1f}_{1:3.1f}^{2:3.1f}".format(M_tot,M_low,M_up))
+
+        #---------- output -----------
+        data = {
+                self.identifier:ids,
+                "lower_mass":cis[:,0,0],
+                "map_mass":maps[:,0],
+                "upper_mass":cis[:,1,0],
+                "map_av":maps[:,1],
+                "lower_mass":cis[:,0,0],
+                "upper_mass":cis[:,1,0]
+        }
+        out = pd.DataFrame(data)
+        out.to_csv(path_or_buf=self.file_statistics,index=False)
+
+    def plot_source(self,ID,sample,MAP,CI):
+            file_plot = self.dir_plots+"/source_{0}.pdf".format(str(ID))
+
+            pdf = PdfPages(filename=file_plot)
+            y_min,y_max= 0.95*np.min(sample[:,:,0]),1.05*np.max(sample[:,:,0])
+
+            fig = plt.figure(221, figsize=(10, 10))
+            ax0 = fig.add_subplot(223, position=self.rect_scatter)
+            ax0.set_xlabel("Iteration")
+            ax0.set_ylabel(r"Mass $[\mathrm{M_{\odot}}]$")
+            ax0.set_ylim(y_min,y_max)
+            ax0.plot(sample[:,:,0].T, '-', color='black', alpha=0.3,linewidth=0.3)
+            ax0.axhline(MAP[0],  color='blue',ls="-",linewidth=0.5,label="MAP")
+            ax0.axhline(CI[0,0], color='blue',ls=":",linewidth=0.5,label="CI")
+            ax0.axhline(CI[1,0], color='blue',ls=":",linewidth=0.5)
+            ax0.legend(loc="upper left",ncol=4,fontsize=4)
+
+
+            ax1 = fig.add_subplot(224, position=self.rect_histy)
+            ax1.set_ylim(y_min,y_max)
+            ax1.axhline(MAP[0],     color='blue',ls="-",linewidth=0.5,label="MAP")
+            ax1.axhline(CI[0,0],    color='blue',ls=":",linewidth=0.5,label="CI")
+            ax1.axhline(CI[1,0],    color='blue',ls=":",linewidth=0.5)
+
+            ax1.set_xlabel("Density")
+            ax1.yaxis.set_ticks_position('none') 
+
+            xticks = ax1.xaxis.get_major_ticks() 
+            xticks[0].label1.set_visible(False)
+
+            ax1.yaxis.set_major_formatter(self.nullfmt)
+            ax1.yaxis.set_minor_formatter(self.nullfmt)
+
+            ax1.hist(sample[:,:,0].flatten(),bins=100,density=True, 
+                color="k",orientation='horizontal', fc='none', histtype='step',lw=0.5)
+            pdf.savefig(bbox_inches='tight')  # saves the current figure into a pdf page
+            plt.close()
+
+            # plt.figure()
+            # idx     = np.ix_(np.where(np.isfinite(datum))[0])
+            # true_phot = np.array([self.mass2phot[j](MAP[0]) for j in range(self.n_bands)]) + MAP[1]*self.av2al
+            # x  = np.arange(self.n_bands)
+
+            # plt.scatter(x,true_phot,color="grey",label="Model")
+            # plt.errorbar(x,observed,yerr=uncert,fmt=".",label="Observed")
+            # plt.xticks(x,observable,rotation='vertical')
+            # plt.margins(0.2)
+            # # Tweak spacing to prevent clipping of tick-labels
+            # plt.subplots_adjust(bottom=0.15)
+            # plt.legend(loc="upper right",fontsize=4)
+            # plt.ylabel("Magnitude")
+            # plt.xlabel("Filter")
+            # pdf.savefig(bbox_inches='tight')
+            # plt.close()
+
+            # Corner plot
+            sample_flatten = sample.reshape((sample.shape[0]*sample.shape[1],sample.shape[2]))
+            fig = plt.figure()
+            figure = corner.corner(sample_flatten, labels=self.name_parameters,truths=MAP,
+                        truth_color="red",
+                        quantiles=self.quantiles,
+                        show_titles=True, 
+                        title_kwargs={"fontsize": 12})
+            pdf.savefig(bbox_inches='tight')
+            plt.close() 
+            pdf.close()
+
+
