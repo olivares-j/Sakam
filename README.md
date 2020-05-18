@@ -25,8 +25,9 @@ Note: The new version has an improved mixing of walkers.
 2. Modify the code apparent2absolute.py to transform apparent magnitudes into absolute ones using the computed distances.
 3. Download the isochrone (e.g. Parsec) with the photometric bands you intent to use (save it as a csv file)
 4. Modify the example.py file to provide:
-...1. Input files (absolute magnitudes and isochrone)
-...2. Variable names
-...3. MCMC parameters
-...4. Additional parameters
+
+   1. Input files (absolute magnitudes and isochrone). 
+   2. Variable names. 
+   3. MCMC parameters. 
+   4. Additional parameters. 
 5. Activate the environment (``conda activate sakam``) and run the script with: ``python example.py``
