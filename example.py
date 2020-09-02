@@ -63,8 +63,7 @@ sakam.load_data(file_data=file_data,
                     identifier=identifier,
                     bands=observables,
                     errors=uncertainties,
-                    init_mass=init_mass,
-                    nrows=2)
+                    init_mass=init_mass)
 
 sakam.run()
 sakam.plots(scale="log") # Log ("log)") or linear ("lin") scale
