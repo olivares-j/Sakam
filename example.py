@@ -24,7 +24,7 @@ from sakam import Sakam
 
 ############### Files and directories #########################################
 dir_main        = "/home/javier/Cumulos/Taurus/Sakam/"
-dir_main        = "/raid/jromero/OCs/Taurus/Sakam/"
+# dir_main        = "/raid/jromero/OCs/Taurus/Sakam/"
 #---------- Input files --------------------------
 file_isochrone  = dir_main + "colibri_1Myr.csv"
 file_data       = dir_main + "Absolute_magnitudes.csv"
@@ -32,6 +32,7 @@ file_data       = dir_main + "Absolute_magnitudes.csv"
 
 ########################### VARIABLES COLIBRI ##########################
 identifier   = 'source_id'
+init_mass    = 'init_mass' # In case you have an initial guess of the value. Optional column.
 variate      = "Mini"
 covariates   = ['G_BPmag','Gmag','G_RPmag',
                 'gP1mag','rP1mag','iP1mag','zP1mag','yP1mag',
@@ -61,9 +62,11 @@ sakam.load_isochrone(file_isochrone=file_isochrone,
 sakam.load_data(file_data=file_data,
                     identifier=identifier,
                     bands=observables,
-                    errors=uncertainties)
+                    errors=uncertainties,
+                    init_mass=init_mass,
+                    nrows=2)
 
 sakam.run()
-sakam.plots()
-sakam.statistics()
+sakam.plots(scale="log") # Log ("log)") or linear ("lin") scale
+# sakam.statistics()
 

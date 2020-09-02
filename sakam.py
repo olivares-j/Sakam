@@ -44,7 +44,9 @@ class posterior_mass:
     This class provides flexibility to infer the posterior distribution of the mass given the absolute magnitudes
     It also infers the extinction nu
     """
-    def __init__(self,observed,uncert,N_bands,mass2phot,av2al,hyper,walkers_ratio,prior_mass="Uniform",min_variate=0.1,max_variate=10,
+    def __init__(self,observed,uncert,init_mass,N_bands,mass2phot,av2al,hyper,walkers_ratio,
+                    prior_mass="Uniform",min_variate=0.1,max_variate=10,
+                    init_sd_mass=0.1,init_loc_av=0.05,init_scl_av=0.01,
                     burnin_frac=0.2,quantiles=[2.5,97.5]):
 
         
@@ -94,11 +96,12 @@ class posterior_mass:
             lp_sd_m = prior_sd_m.logpdf(theta[5])
             return lp_Ms+lp_Av+lp_Pb+lp_Yb+lp_sd_b+lp_sd_m
 
-
+        #------------ Initial positions --------------------------------------
+        a, b = (min_variate - init_mass) / init_sd_mass, (max_variate - init_mass) / init_sd_mass
         self.pos0 = [
                 np.array([
-                st.norm.rvs(loc=1.0,scale=0.1,size=1)[0],
-                st.halfnorm.rvs(loc=0.05,scale=0.01,size=1)[0],
+                st.truncnorm.rvs(a,b,loc=init_mass,scale=init_sd_mass,size=1)[0],
+                st.halfnorm.rvs(loc=init_loc_av,scale=init_scl_av,size=1)[0],
                 st.halfnorm.rvs(loc=0.05,scale=0.01,size=1)[0],
                 prior_Yb.rvs(size=1)[0],
                 prior_sd_b.rvs(size=1)[0],
@@ -230,8 +233,13 @@ class Sakam:
         self.av2al = np.array(av2al)
 
 
-    def load_data(self,file_data,identifier,bands,errors,nan_threshold=3,*args,**kwargs):
-        columns_data = sum([[identifier],bands,errors],[])
+    def load_data(self,file_data,identifier,bands,errors,nan_threshold=3,init_mass=None,*args,**kwargs):
+        if init_mass is None:
+            columns_data = sum([[identifier],bands,errors],[])
+        else:
+            columns_data = sum([[identifier],bands,errors,[init_mass]],[])
+
+        observables  = sum([bands,errors],[])
         data         = pd.read_csv(file_data,usecols=columns_data,*args,**kwargs)
         data         = data.reindex(columns=columns_data)
 
@@ -241,17 +249,23 @@ class Sakam:
         #----- put ID as row name-----
         data.set_index(identifier,inplace=True)
 
-        self.data  = data.dropna(thresh=nan_threshold*2) 
+        self.data  = data.dropna(thresh=nan_threshold*2,subset=observables) 
 
         self.N       = self.data.shape[0]
         self.n_bands = len(bands)
         self.bands   = bands
         self.errors  = errors
         self.identifier = identifier
+        self.init_mass = init_mass
+
+        if init_mass is None:
+            self.init_mass = "init_mass"
+            self.data.insert(loc=self.data.shape[1],column=self.init_mass,value=1.0)
         ############################################################################################
 
 
-    def run(self,iterations=3000,walkers_ratio=4,burnin_fraction=0.3,prior_mass="Chabrier"):
+    def run(self,iterations=4000,walkers_ratio=4,burnin_fraction=0.5,prior_mass="Chabrier",
+            init_sd_mass=0.1,init_loc_av=0.05,init_scl_av=0.01):
         #--------- Use existing sources ------------------
         if os.path.exists(self.file_h5):
             print("Using existing samples")
@@ -274,8 +288,9 @@ class Sakam:
 
             #------ Initialize the module --------
             Module = posterior_mass(
-                    datum[self.bands].values,
-                    datum[self.errors].values,
+                    observed=datum[self.bands].values,
+                    uncert=datum[self.errors].values,
+                    init_mass=datum[self.init_mass],
                     N_bands=self.n_bands,
                     mass2phot=self.mass2phot,
                     av2al=self.av2al,
@@ -284,6 +299,9 @@ class Sakam:
                     prior_mass=prior_mass,
                     min_variate=self.min_variate,
                     max_variate=self.max_variate,
+                    init_sd_mass=init_sd_mass,
+                    init_loc_av=init_loc_av,
+                    init_scl_av=init_scl_av,
                     quantiles=self.quantiles,
                     burnin_frac=burnin_fraction)
 
@@ -306,7 +324,7 @@ class Sakam:
         self.fh5.close()
 
 
-    def plots(self,):
+    def plots(self,scale="lin"):
         print("Plotting posterior samples")
         fh5  = h5py.File(self.file_h5,'r')
         for ID,datum in self.data.iterrows():
@@ -322,7 +340,7 @@ class Sakam:
             self.plot_source(ID,
                     datum[self.bands].values,
                     datum[self.errors].values,
-                    sample,MAP,CI)
+                    sample,MAP,CI,scale=scale)
 
         fh5.close()
 
@@ -365,71 +383,80 @@ class Sakam:
         out = pd.DataFrame(data)
         out.to_csv(path_or_buf=self.file_stats,index=False)
 
-    def plot_source(self,ID,observed,uncert,sample,MAP,CI):
-            file_plot = self.dir_plots+"/source_{0}.pdf".format(str(ID))
+    def plot_source(self,ID,observed,uncert,sample,MAP,CI,scale):
+        file_plot = self.dir_plots+"/source_{0}.pdf".format(str(ID))
 
-            pdf = PdfPages(filename=file_plot)
-            y_min,y_max= 0.95*np.min(sample[:,:,0]),1.05*np.max(sample[:,:,0])
+        pdf = PdfPages(filename=file_plot)
+        y_min,y_max= 0.95*np.min(sample[:,:,0]),1.05*np.max(sample[:,:,0])
 
-            fig = plt.figure(221, figsize=(10, 10))
-            ax0 = fig.add_subplot(223, position=self.rect_scatter)
-            ax0.set_xlabel("Iteration")
-            ax0.set_ylabel(r"Mass $[\mathrm{M_{\odot}}]$")
-            ax0.set_ylim(y_min,y_max)
-            ax0.plot(sample[:,:,0].T, '-', color='black', alpha=0.3,linewidth=0.3)
-            ax0.axhline(MAP[0],  color='blue',ls="-",linewidth=0.5,label="MAP")
-            ax0.axhline(CI[0,0], color='blue',ls=":",linewidth=0.5,label="CI")
-            ax0.axhline(CI[1,0], color='blue',ls=":",linewidth=0.5)
-            ax0.legend(loc="upper left",ncol=4,fontsize=4)
-
-
-            ax1 = fig.add_subplot(224, position=self.rect_histy)
-            ax1.set_ylim(y_min,y_max)
-            ax1.axhline(MAP[0],     color='blue',ls="-",linewidth=0.5,label="MAP")
-            ax1.axhline(CI[0,0],    color='blue',ls=":",linewidth=0.5,label="CI")
-            ax1.axhline(CI[1,0],    color='blue',ls=":",linewidth=0.5)
-
-            ax1.set_xlabel("Density")
-            ax1.yaxis.set_ticks_position('none') 
-
-            xticks = ax1.xaxis.get_major_ticks() 
-            xticks[0].label1.set_visible(False)
-
-            ax1.yaxis.set_major_formatter(self.nullfmt)
-            ax1.yaxis.set_minor_formatter(self.nullfmt)
-
-            ax1.hist(sample[:,:,0].flatten(),bins=100,density=True, 
-                color="k",orientation='horizontal', fc='none', histtype='step',lw=0.5)
-            pdf.savefig(bbox_inches='tight')  # saves the current figure into a pdf page
-            plt.close()
-
-            plt.figure()
-            true_phot = np.array([self.mass2phot[j](MAP[0]) for j in range(self.n_bands)]) + MAP[1]*self.av2al
-            x  = np.arange(self.n_bands)
-
-            # plt.scatter(x,true_phot-true_phot,yerr=,color="grey",label="Model")
-            plt.errorbar(x,observed-true_phot,yerr=uncert,fmt=".",label="Observed")
-            plt.xticks(x,self.bands,rotation='vertical')
-            plt.margins(0.2)
-            # Tweak spacing to prevent clipping of tick-labels
-            plt.subplots_adjust(bottom=0.15)
-            plt.legend(loc="upper right",fontsize=4)
-            plt.ylabel("$\\Delta$ Magnitude (observed-modelled)")
-            plt.xlabel("Filter")
-            pdf.savefig(bbox_inches='tight')
-            plt.close()
+        fig = plt.figure(221, figsize=(10, 10))
+        ax0 = fig.add_subplot(223, position=self.rect_scatter)
+        if scale == "log":
+            print("Plotting log scale")
+            ax0.set_yscale("log")
+        ax0.set_xlabel("Iteration")
+        ax0.set_ylabel(r"Mass $[\mathrm{M_{\odot}}]$")
+        ax0.set_ylim(y_min,y_max)
+        ax0.plot(sample[:,:,0].T, '-', color='black', alpha=0.3,linewidth=0.3)
+        ax0.axhline(MAP[0],  color='blue',ls="-",linewidth=0.5,label="MAP")
+        ax0.axhline(CI[0,0], color='blue',ls=":",linewidth=0.5,label="CI")
+        ax0.axhline(CI[1,0], color='blue',ls=":",linewidth=0.5)
+        ax0.legend(loc="upper left",ncol=4,fontsize=4)
+        
 
 
-            # Corner plot
-            sample_flatten = sample.reshape((sample.shape[0]*sample.shape[1],sample.shape[2]))
-            fig = plt.figure()
-            figure = corner.corner(sample_flatten, labels=self.name_parameters,truths=MAP,
-                        truth_color="red",
-                        quantiles=self.quantiles,
-                        show_titles=True, 
-                        title_kwargs={"fontsize": 12})
-            pdf.savefig(bbox_inches='tight')
-            plt.close() 
-            pdf.close()
+        ax1 = fig.add_subplot(224, position=self.rect_histy)
+        if scale == "log":
+            ax1.set_yscale("log")
+        ax1.set_ylim(y_min,y_max)
+        ax1.axhline(MAP[0],     color='blue',ls="-",linewidth=0.5,label="MAP")
+        ax1.axhline(CI[0,0],    color='blue',ls=":",linewidth=0.5,label="CI")
+        ax1.axhline(CI[1,0],    color='blue',ls=":",linewidth=0.5)
+
+        ax1.set_xlabel("Density")
+        ax1.yaxis.set_ticks_position('none') 
+
+        xticks = ax1.xaxis.get_major_ticks() 
+        xticks[0].label1.set_visible(False)
+
+        ax1.yaxis.set_major_formatter(self.nullfmt)
+        ax1.yaxis.set_minor_formatter(self.nullfmt)
+
+        ax1.hist(sample[:,:,0].flatten(),bins=100,density=True, 
+            color="k",orientation='horizontal', fc='none', histtype='step',lw=0.5)
+
+        
+
+        pdf.savefig(bbox_inches='tight')  # saves the current figure into a pdf page
+        plt.close()
+
+        plt.figure()
+        true_phot = np.array([self.mass2phot[j](MAP[0]) for j in range(self.n_bands)]) + MAP[1]*self.av2al
+        x  = np.arange(self.n_bands)
+
+        # plt.scatter(x,true_phot-true_phot,yerr=,color="grey",label="Model")
+        plt.errorbar(x,observed-true_phot,yerr=uncert,fmt=".",label="Observed")
+        plt.xticks(x,self.bands,rotation='vertical')
+        plt.margins(0.2)
+        # Tweak spacing to prevent clipping of tick-labels
+        plt.subplots_adjust(bottom=0.15)
+        plt.legend(loc="upper right",fontsize=4)
+        plt.ylabel("$\\Delta$ Magnitude (observed-modelled)")
+        plt.xlabel("Filter")
+        pdf.savefig(bbox_inches='tight')
+        plt.close()
+
+
+        # Corner plot
+        sample_flatten = sample.reshape((sample.shape[0]*sample.shape[1],sample.shape[2]))
+        fig = plt.figure()
+        figure = corner.corner(sample_flatten, labels=self.name_parameters,truths=MAP,
+                    truth_color="red",
+                    quantiles=self.quantiles,
+                    show_titles=True, 
+                    title_kwargs={"fontsize": 12})
+        pdf.savefig(bbox_inches='tight')
+        plt.close() 
+        pdf.close()
 
 
