@@ -68,5 +68,5 @@ sakam.load_data(file_data=file_data,
 
 sakam.run()
 sakam.plots(scale="log") # Log ("log)") or linear ("lin") scale
-# sakam.statistics()
+sakam.statistics()
 
