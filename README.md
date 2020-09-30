@@ -26,3 +26,11 @@ Note: The [emcee](https://github.com/dfm/emcee) version from the repository show
    3. MCMC parameters. 
    4. Additional parameters. 
 5. Activate the environment (``conda activate sakam``) and run the script with: ``python example.py``
+
+## Parallel version
+-------------------
+1. Navigate into the parallel folder and edit the ``Globals.py`` file according to your system and data.
+2. Edit the first line of the launch_group file. It must point to the bash command (in the server it is /usr/bin/bash).
+3. Within the sakam environment type ``./launch_group Globals.py``
+4. Check the log files and monitor the run.
+5. Once all processes are done type ``python unify`` to unify all samples and statistics.
