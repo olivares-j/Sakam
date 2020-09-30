@@ -39,14 +39,14 @@ from matplotlib import gridspec
 from matplotlib.ticker import NullFormatter
 
 
-class posterior_mass:
+class posterior_variate:
     """
-    This class provides flexibility to infer the posterior distribution of the mass given the absolute magnitudes
+    This class provides flexibility to infer the posterior distribution of the variate given the absolute magnitudes
     It also infers the extinction nu
     """
-    def __init__(self,observed,uncert,init_mass,N_bands,mass2phot,av2al,hyper,walkers_ratio,
-                    prior_mass="Uniform",min_variate=0.1,max_variate=10,
-                    init_sd_mass=0.1,init_loc_av=0.05,init_scl_av=0.01,
+    def __init__(self,observed,uncert,init_variate,N_bands,variate2phot,av2al,hyper,walkers_ratio,
+                    prior_variate="Uniform",min_variate=0.1,max_variate=10,
+                    initial_hyper=None,
                     burnin_frac=0.2,quantiles=[2.5,97.5]):
 
         
@@ -56,10 +56,19 @@ class posterior_mass:
         self.max_variate = max_variate
         self.min_variate = min_variate
         self.N_bands     = N_bands
-        self.mass2phot   = mass2phot
+        self.variate2phot   = variate2phot
         self.av2al       = av2al
         self.quantiles   = quantiles
 
+        if initial_hyper is None:
+            initial_hyper = {
+                            "loc_variate":1.0,
+                            "scl_variate":0.1,
+                            "loc_Av":0.05,
+                            "scl_Av":0.01,
+                            "loc_Pb":0.05,
+                            "scl_Pb":0.01
+                            }
 
         #------------------------------------------------------
         idx     = np.ix_(np.where(np.isfinite(observed))[0])[0]
@@ -77,11 +86,11 @@ class posterior_mass:
         prior_sd_b = st.gamma(a=2.0,scale=hyper["beta_sd_b"])
         prior_sd_m = st.gamma(a=2.0,scale=hyper["beta_sd_m"])
 
-        if prior_mass=="Uniform":
+        if prior_variate=="Uniform":
             prior_Ms = st.uniform(loc=min_variate,scale=max_variate-min_variate)
-        elif prior_mass == "Half-Cauchy":
+        elif prior_variate == "Half-Cauchy":
             prior_Ms = st.halfcauchy(loc=0.0,scale=100.0)
-        elif prior_mass == "Chabrier":
+        elif prior_variate == "Chabrier":
             prior_Ms = st.lognorm(s=0.55,loc=np.log(0.2))
         else:
             sys.exit("Incorrect prior type")
@@ -97,12 +106,13 @@ class posterior_mass:
             return lp_Ms+lp_Av+lp_Pb+lp_Yb+lp_sd_b+lp_sd_m
 
         #------------ Initial positions --------------------------------------
-        a, b = (min_variate - init_mass) / init_sd_mass, (max_variate - init_mass) / init_sd_mass
+        a = (min_variate - init_variate) / initial_hyper["scl_variate"] 
+        b = (max_variate - init_variate) / initial_hyper["scl_variate"]
         self.pos0 = [
                 np.array([
-                st.truncnorm.rvs(a,b,loc=init_mass,scale=init_sd_mass,size=1)[0],
-                st.halfnorm.rvs(loc=init_loc_av,scale=init_scl_av,size=1)[0],
-                st.halfnorm.rvs(loc=0.05,scale=0.01,size=1)[0],
+                st.truncnorm.rvs(a,b,loc=init_variate,scale=initial_hyper["scl_variate"],size=1)[0],
+                st.halfnorm.rvs(loc=initial_hyper["loc_Av"],scale=initial_hyper["scl_Av"],size=1)[0],
+                st.halfnorm.rvs(loc=initial_hyper["loc_Pb"],scale=initial_hyper["scl_Pb"],size=1)[0],
                 prior_Yb.rvs(size=1)[0],
                 prior_sd_b.rvs(size=1)[0],
                 prior_sd_m.rvs(size=1)[0]
@@ -117,16 +127,16 @@ class posterior_mass:
 
     def log_likelihood(self,parameters):
         '''
-        This log likelihood depends on the mass, photometry and uncertainty of the later
+        This log likelihood depends on the variate, photometry and uncertainty of the later
         '''
-        mass = parameters[0] # The mass of the star
+        variate = parameters[0] # The variate of the star
         Av   = parameters[1] # Extinction
         Pb   = parameters[2] # The probability of being an outlier
         Yb   = parameters[3] # The mean position of the outlier distribution
         sd_b = parameters[4] # The variance of the outlier distribution
         sd_m = parameters[5] # The variance added to the photometry
 
-        true_phot = np.array([self.mass2phot[i](mass) for i in range(self.N_bands)])
+        true_phot = np.array([self.variate2phot[i](variate) for i in range(self.N_bands)])
 
         redden_phot = true_phot + Av*self.av2al
 
@@ -170,10 +180,10 @@ class posterior_mass:
         return MAP,Median,SD,CI,sample,np.mean(sampler.acceptance_fraction)
 
 class Sakam:
-    def __init__(self,dir_output,hyperparameters=None,
-                quantiles=[0.16,0.84]):
+    def __init__(self,file_samples,hyperparameters=None,
+                quantiles=[0.16,0.84],name_variate=r"Mass $[\mathrm{M_{\odot}}]$"):
 
-        self.name_parameters = [r"Mass $[\mathrm{M_{\odot}}]$",r"Av", r"$Pb$", r"$Yb$",r"$Sdb$",r"$Sdm$"]
+        self.name_parameters = [name_variate,r"Av", r"$Pb$", r"$Yb$",r"$Sdb$",r"$Sdm$"]
         self.quantiles       = quantiles
         self.hyper           = hyperparameters
         self.n_parameters    = len(self.name_parameters)
@@ -186,43 +196,28 @@ class Sakam:
                             "beta_sd_m":0.1}
 
         #-------------- Files --------------------------
-        os.makedirs(dir_output,exist_ok=True)
-        self.file_h5    = dir_output + "/samples.h5"
-        self.file_mass  = dir_output + "/"
-        self.dir_plots  = dir_output + "/Plots"
-        self.file_stats = dir_output + "/statistics.csv"
-        os.makedirs(self.dir_plots,exist_ok=True)
-        
-        
-        #------- Plot parameters ---------------
-        self.nullfmt = plt.NullFormatter()
-        left, width = 0.1, 0.4
-        bottom, height = 0.1, 0.4
-        bottom_h = left_h = left + width + 0.0
-        self.rect_scatter = [left, bottom, width, height]
-        self.rect_histx   = [left, bottom_h, width, 0.4]
-        self.rect_histy   = [left_h, bottom, 0.1, height]
+        self.file_samples    = file_samples
 
 
-    def load_isochrone(self,file_isochrone,variate,covariates,av2al,upper_limit_variate=3.5):
+    def load_isochrone(self,file_isochrone,variate,covariates,av2al,upper_limit_variate=10.0):
         cols_isoc    = sum([[variate],covariates],[])
         
         print("Loading isochrone")
         isochrone = pd.read_csv(file_isochrone,usecols=cols_isoc,dtype=np.float64)
         print("Dropping duplicated values")
         isochrone = isochrone.drop_duplicates(subset=[variate])
-        print("Dropping variate values larger than upper limit")
+        print("Dropping variate values larger than upper limit: {0:2.1f}".format(upper_limit_variate))
         idx_valid = np.where(isochrone[variate]< upper_limit_variate)[0]
         isochrone = isochrone.iloc[idx_valid,:]
         ####################################################################################################
 
-        ########################### INTERPOLATING FUNCTION OF THE MASSS ###########################
+        ########################### INTERPOLATING FUNCTION ###########################
         '''
-        This is intended to give a smooth representation of the mass.
-        For a given value of the mass it returns a set of true photometric values.
+        This is intended to give a smooth representation of the variate.
+        For a given value of the variate it returns a set of true photometric values.
         '''
 
-        self.mass2phot = [interp1d(isochrone[variate],isochrone[cov],kind="cubic") for cov in covariates]
+        self.variate2phot = [interp1d(isochrone[variate],isochrone[cov],kind="cubic") for cov in covariates]
 
         self.min_variate  = np.min(isochrone[variate])
         self.max_variate  = np.max(isochrone[variate])
@@ -233,15 +228,19 @@ class Sakam:
         self.av2al = np.array(av2al)
 
 
-    def load_data(self,file_data,identifier,bands,errors,nan_threshold=3,init_mass=None,*args,**kwargs):
-        if init_mass is None:
+    def load_data(self,file_data,identifier,bands,errors,
+                    nan_threshold=3,init_variate=None,nan_values=99.0,*args,**kwargs):
+        if init_variate is None:
             columns_data = sum([[identifier],bands,errors],[])
         else:
-            columns_data = sum([[identifier],bands,errors,[init_mass]],[])
+            columns_data = sum([[identifier],bands,errors,[init_variate]],[])
 
         observables  = sum([bands,errors],[])
         data         = pd.read_csv(file_data,usecols=columns_data,*args,**kwargs)
         data         = data.reindex(columns=columns_data)
+
+        #----- Nan ----
+        data.replace(to_replace=nan_values,value=np.nan,inplace=True)
 
         #------- index as string ------
         data[identifier] = data[identifier].astype('str')
@@ -256,27 +255,27 @@ class Sakam:
         self.bands   = bands
         self.errors  = errors
         self.identifier = identifier
-        self.init_mass = init_mass
+        self.init_variate = init_variate
 
-        if init_mass is None:
-            self.init_mass = "init_mass"
-            self.data.insert(loc=self.data.shape[1],column=self.init_mass,value=1.0)
+        if init_variate is None:
+            self.init_variate = "init_variate"
+            self.data.insert(loc=self.data.shape[1],column=self.init_variate,value=1.0)
         ############################################################################################
 
 
-    def run(self,iterations=4000,walkers_ratio=4,burnin_fraction=0.5,prior_mass="Chabrier",
-            init_sd_mass=0.1,init_loc_av=0.05,init_scl_av=0.01):
+    def run(self,iterations=4000,walkers_ratio=4,burnin_fraction=0.5,prior_variate="Chabrier",
+            initial_hyper=None):
         #--------- Use existing sources ------------------
-        if os.path.exists(self.file_h5):
+        if os.path.exists(self.file_samples):
             print("Using existing samples")
-            fh5       = h5py.File(self.file_h5,'r')
+            fh5       = h5py.File(self.file_samples,'r')
             ids       = fh5.keys()
             self.data.drop(ids,inplace=True)
             fh5.close()
-            self.fh5  = h5py.File(self.file_h5,'a')
+            self.fh5  = h5py.File(self.file_samples,'a')
 
         else:
-            self.fh5  = h5py.File(self.file_h5,'w')
+            self.fh5  = h5py.File(self.file_samples,'w')
 
         print("Sampling the posterior")
 
@@ -287,21 +286,19 @@ class Sakam:
             grp = self.fh5.create_group(ID)
 
             #------ Initialize the module --------
-            Module = posterior_mass(
+            Module = posterior_variate(
                     observed=datum[self.bands].values,
                     uncert=datum[self.errors].values,
-                    init_mass=datum[self.init_mass],
+                    init_variate=datum[self.init_variate],
                     N_bands=self.n_bands,
-                    mass2phot=self.mass2phot,
+                    variate2phot=self.variate2phot,
                     av2al=self.av2al,
                     hyper=self.hyper,
                     walkers_ratio=walkers_ratio,
-                    prior_mass=prior_mass,
+                    prior_variate=prior_variate,
                     min_variate=self.min_variate,
                     max_variate=self.max_variate,
-                    init_sd_mass=init_sd_mass,
-                    init_loc_av=init_loc_av,
-                    init_scl_av=init_scl_av,
+                    initial_hyper=initial_hyper,
                     quantiles=self.quantiles,
                     burnin_frac=burnin_fraction)
 
@@ -324,9 +321,19 @@ class Sakam:
         self.fh5.close()
 
 
-    def plots(self,scale="lin"):
+    def plots(self,dir_plots,scale="lin"):
+        #------- Plot parameters ---------------------------
+        self.nullfmt = plt.NullFormatter()
+        left, width = 0.1, 0.4
+        bottom, height = 0.1, 0.4
+        bottom_h = left_h = left + width + 0.0
+        self.rect_scatter = [left, bottom, width, height]
+        self.rect_histx   = [left, bottom_h, width, 0.4]
+        self.rect_histy   = [left_h, bottom, 0.1, height]
+        #---------------------------------------------------
+
         print("Plotting posterior samples")
-        fh5  = h5py.File(self.file_h5,'r')
+        fh5  = h5py.File(self.file_samples,'r')
         for ID,datum in self.data.iterrows():
             grp = fh5.get(ID)
             MAP     = np.array(grp.get("MAP"))
@@ -337,7 +344,7 @@ class Sakam:
             if acc < 0.2:
                 print("Warning: source {0} has low acceptance fraction!".format(ID))
 
-            self.plot_source(ID,
+            self.plot_source(dir_plots,ID,
                     datum[self.bands].values,
                     datum[self.errors].values,
                     sample,MAP,CI,scale=scale)
@@ -345,9 +352,9 @@ class Sakam:
         fh5.close()
 
 
-    def statistics(self,):
+    def statistics(self,file_statistics):
         #----------- Compute statistics -----------------------
-        fh5  = h5py.File(self.file_h5,'r')
+        fh5  = h5py.File(self.file_samples,'r')
         ids  = list(fh5.keys())
 
         #------------ Intitialize arrays and directory ----------------
@@ -363,28 +370,28 @@ class Sakam:
             cis[i]     = np.array(grp.get("CI"))
         fh5.close()
 
-        M_tot = np.sum(maps[:,0])
-        M_low = M_tot - np.sum(cis[:,0,0])
-        M_up  = np.sum(cis[:,1,0]) - M_tot
+        V_tot = np.sum(maps[:,0])
+        V_low = V_tot - np.sum(cis[:,0,0])
+        V_up  = np.sum(cis[:,1,0]) - V_tot
 
-        print("Total mass: {0:3.1f}_{1:3.1f}^{2:3.1f}".format(M_tot,M_low,M_up))
+        print("Total variate: {0:3.1f}_{1:3.1f}^{2:3.1f}".format(V_tot,V_low,V_up))
 
         #---------- output -----------
         data = {
                 self.identifier:ids,
-                "lower_mass": cis[:,0,0],
-                "map_mass":    maps[:,0],
-                "upper_mass": cis[:,1,0],
+                "lower_variate": cis[:,0,0],
+                "map_variate":    maps[:,0],
+                "upper_variate": cis[:,1,0],
                 "lower_av":   cis[:,0,1],
                 "map_av":      maps[:,1],
                 "upper_av":   cis[:,1,1]
                 }
         #-------- Save data -------------------------------------
         out = pd.DataFrame(data)
-        out.to_csv(path_or_buf=self.file_stats,index=False)
+        out.to_csv(path_or_buf=file_statistics,index=False)
 
-    def plot_source(self,ID,observed,uncert,sample,MAP,CI,scale):
-        file_plot = self.dir_plots+"/source_{0}.pdf".format(str(ID))
+    def plot_source(self,dir_plots,ID,observed,uncert,sample,MAP,CI,scale):
+        file_plot = dir_plots+"/source_{0}.pdf".format(str(ID))
 
         pdf = PdfPages(filename=file_plot)
         y_min,y_max= 0.95*np.min(sample[:,:,0]),1.05*np.max(sample[:,:,0])
@@ -395,7 +402,7 @@ class Sakam:
             print("Plotting log scale")
             ax0.set_yscale("log")
         ax0.set_xlabel("Iteration")
-        ax0.set_ylabel(r"Mass $[\mathrm{M_{\odot}}]$")
+        ax0.set_ylabel(self.name_parameters[0])
         ax0.set_ylim(y_min,y_max)
         ax0.plot(sample[:,:,0].T, '-', color='black', alpha=0.3,linewidth=0.3)
         ax0.axhline(MAP[0],  color='blue',ls="-",linewidth=0.5,label="MAP")
@@ -431,7 +438,7 @@ class Sakam:
         plt.close()
 
         plt.figure()
-        true_phot = np.array([self.mass2phot[j](MAP[0]) for j in range(self.n_bands)]) + MAP[1]*self.av2al
+        true_phot = np.array([self.variate2phot[j](MAP[0]) for j in range(self.n_bands)]) + MAP[1]*self.av2al
         x  = np.arange(self.n_bands)
 
         # plt.scatter(x,true_phot-true_phot,yerr=,color="grey",label="Model")
