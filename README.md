@@ -29,4 +29,4 @@ Note: The [emcee](https://github.com/dfm/emcee) version from the repository show
 
 ## Simple version
 -------------------
-A simple example on how to use Sakam is in the ``example.py``. Use it if you already have the absolute magnitudes.
+A simple example on how to use Sakam is in ``example.py``. Use it if you already have the absolute magnitudes.

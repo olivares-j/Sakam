@@ -2,13 +2,13 @@ import dill
 
 #----------- Split ------------------------------
 # Number of processes/parts to partition the data
-size = 4
+size = 1
 #------------------------------------------------
 
 #-------------- Directories ----------------------------------
 dir_sakam       = "/home/javier/Repositories/Sakam"
-dir_base        = "/home/javier/Cumulos/Perseus/Data/Groups/K6/"
-dir_main        = "/home/javier/Cumulos/Perseus/Data/Groups/K6/Sakam/"
+dir_base        = "/home/javier/Cumulos/Perseus/Data/Groups/K7/"
+dir_main        = "/home/javier/Cumulos/Perseus/Data/Groups/K7/Sakam/"
 #-------------------------------------------------------------
 
 #------- Global variables ------------------
@@ -17,7 +17,7 @@ file_globals   = dir_main + name_globals
 #--------------------------------------------
 
 #---------- Input files --------------------------------------------------
-file_isochrone  = "/home/javier/Cumulos/Perseus/Models/BT-Settl_7Myr.csv"
+file_isochrone  = "/home/javier/Cumulos/Perseus/Models/BT-Settl_5Myr.csv"
 file_photometry = dir_base + "members+2MASS+PanSTARRS.csv"
 file_distances  = dir_base + "Kalkayotl/Sources_statistics.csv"
 #------------------------------------------------------------------------
@@ -35,14 +35,28 @@ kalkayotl_dimension = 6
 #------------------------------------------------------------------------------------
 
 #---------------- Observed photometry  ----------------------------------
-gaia_bands      = ["g","rp","bp"]
-gaia_errors     = ["g_error","rp_error","bp_error"]
-twomass_bands   = ["Jmag","Hmag","Kmag"]
-twomass_errors  = ["e_Jmag","e_Hmag","e_Kmag"]
-panstars_bands  = ["gmag","rmag","imag","zmag","ymag"]
-panstars_errors = ["e_gmag","e_rmag","e_imag","e_zmag","e_ymag"]
+gaia_bands       = ["bp","g","rp"]
+gaia_errors      = ["bp_error","g_error","rp_error"]
+twomass_bands    = ["Jmag","Hmag","Kmag"]
+twomass_errors   = ["e_Jmag","e_Hmag","e_Kmag"]
+panstarrs_bands  = ["gmag","rmag","imag","zmag","ymag"]
+panstarrs_errors = ["e_gmag","e_rmag","e_imag","e_zmag","e_ymag"]
 #-------------------------------------------------------------------------
 
+#--------------------- Isochrone -----------------------------------------
+variate      = "Mass"
+max_variate  = 3.5
+# THe following are the covariates in the isochrone
+# !!!!!! KEEP THE SAME ORDER AS IN OBSERVED PHOTOMETRY !!!!!!!!!!!!!
+gaia_covs      = ['G_BPmag','Gmag','G_RPmag',]
+twomass_covs   = ['Jmag','Hmag','Kmag']
+panstarrs_covs = ['gP1mag','rP1mag','iP1mag','zP1mag','yP1mag']
+# The following values transform the visual extinction 
+# to the extinction in each bands 
+gaia_av2al     = [1.06794,0.85926,0.65199]
+twomass_av2al  = [0.29434,0.18128,0.11838]
+panstarrs_av2al= [1.16529,0.86813,0.67659,0.51743,0.43092]
+#----------------------------------------------------------------------
 
 #------ Preprocessing ------------------------------
 nan_values = 99.0
@@ -55,18 +69,6 @@ n_obs_min = 3 # Minimum number of observed bands
 
 add_unc = 0.05
 #-------------------------------------------------
-
-#--------------------- Isochrone -----------------------------------------
-variate      = "Mass"
-max_variate  = 3.5
-covariates   = ['G_BPmag','Gmag','G_RPmag',
-                'gP1mag','rP1mag','iP1mag','zP1mag','yP1mag',
-                'Jmag','Hmag','Kmag']
-# The following values transform the visual extinction 
-# to the extinction in each bands 
-av2al = [1.06794,0.85926,0.65199,1.16529,0.86813,
-        0.67659,0.51743,0.43092,0.29434,0.18128,0.11838]
-#----------------------------------------------------------------------
 
 
 #-- Prior and hyper-parameter -----

@@ -12,8 +12,10 @@ dir_plots  = dir_main + "plots/"
 dir_chunks = dir_main + "chunks/"
 file_abs   = dir_main + "Absolute_magnitudes.csv"
 
-bands  = sum([gaia_bands,twomass_bands,panstars_bands],[])
-errors = sum([gaia_errors,twomass_errors,panstars_errors],[])
+bands  = sum([gaia_bands,panstarrs_bands,twomass_bands],[])
+errors = sum([gaia_errors,panstarrs_errors,twomass_errors],[])
+covariates = sum([gaia_covs,panstarrs_covs,twomass_covs],[])
+av2al = sum([gaia_av2al,panstarrs_av2al,twomass_av2al],[])
 
 observables   = [ prefix + band for band in bands]
 uncertainties = [ prefix + error for error in errors]
