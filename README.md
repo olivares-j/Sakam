@@ -1,5 +1,5 @@
 # Sakam
-Infer masses from luminosities and isochrones
+Infer masses from magnitudes and isochrones
 
 ## Installation:
 ----------------
@@ -9,7 +9,7 @@ create a conda environement:
 and activate it with ``conda activate sakam``
 and install the following packages:
 ```
-conda install -c conda-forge numpy pandas scipy h5py corner progressbar matplotlib emcee
+conda install -c conda-forge numpy pandas scipy h5py corner progressbar matplotlib emcee dill
 ```
 
 Note: The [emcee](https://github.com/dfm/emcee) version from the repository shows slightly better convergence.
@@ -17,20 +17,16 @@ Note: The [emcee](https://github.com/dfm/emcee) version from the repository show
 ## How to run:
 --------------
 1. Run [kalkayotl](https://github.com/olivares-j/Kalkayotl) to obtain individual distances to the stars in your sample.
-2. Modify the code apparent2absolute.py to transform apparent magnitudes into absolute ones using the computed distances.
-3. Download the isochrone (e.g. Parsec) with the photometric bands you intent to use (save it as a csv file)
-4. Modify the example.py file to provide:
+2. Download the isochrone (e.g. Parsec) with the photometric bands you intent to use (save it as a csv file)
+4. Modify the ``globals_example.py`` file to provide:
 
-   1. Input files (absolute magnitudes and isochrone). 
+   1. Input files. 
    2. Variable names. 
    3. MCMC parameters. 
    4. Additional parameters. 
-5. Activate the environment (``conda activate sakam``) and run the script with: ``python example.py``
 
-## Parallel version
+5. Activate the environment (``conda activate sakam``) and run the script with: ``launch_sakam globals_example.py``
+
+## Simple version
 -------------------
-1. Navigate into the parallel folder and edit the ``Globals.py`` file according to your system and data.
-2. Edit the first line of the launch_group file. It must point to the bash command (in the server it is /usr/bin/bash).
-3. Within the sakam environment type ``./launch_group Globals.py``
-4. Check the log files and monitor the run.
-5. Once all processes are done type ``python unify`` to unify all samples and statistics.
+A simple example on how to use Sakam is in the ``example.py``. Use it if you already have the absolute magnitudes.

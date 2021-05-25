@@ -69,16 +69,8 @@ hyper = {  "alpha_Av":1.0,
 #------------------------------------
 
 
-#------ Preprocessing ------------------------------
-nan_values = 99.0
-
-# These are the filtering values of BP
-label_BP = "BP" # Use None to avoid the filtering
-limit_BP = 15.0
-
+#------ Preprocessing ----------------------------
 n_obs_min = 3 # Minimum number of observed bands
-
-add_unc = 0.05
 #-------------------------------------------------
 
 #------- Running -------
