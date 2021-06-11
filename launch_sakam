@@ -65,7 +65,7 @@ do
 		echo "Launching part $PRC of $TNP"
 		sed s/XXX/$PRC/g $PATH_SKM/fit.py > tmp.py
 		python tmp.py $PKL >> $LOG_OUT 2>> $LOG_ERR &
-		sleep 30
+		sleep 10
 		rm tmp.py
 	done
 	#==================================================
