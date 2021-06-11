@@ -16,42 +16,66 @@ if [ ! -f $GLOBALS ]
 		exit
 fi
 
+#----- Read models list into bash array
+IFS=',' read -r -a MODELS <<< $(grep -m 1 models $GLOBALS | awk '{print $3}' | tr -d '[]"')
 TNP="$(grep -m 1 size $GLOBALS | awk '{print $3}')"
-PATH_OUT="$(grep -m 1 dir_main $GLOBALS | awk '{print $3}' | tr -d '"')"
+PATH_BSE="$(grep -m 1 dir_base $GLOBALS | awk '{print $3}' | tr -d '"')"
 PATH_SKM="$(grep -m 1 dir_sakam $GLOBALS | awk '{print $3}' | tr -d '"')"
 STATICS=$PATH_SKM"/statics.py"
-PKL="$PATH_OUT$(grep -m 1 -wr '\bname_globals\b' $GLOBALS | awk '{print $3}' | tr -d '"')"
-LOG_OUT=${PATH_OUT}"/log_out"
-LOG_ERR=${PATH_OUT}"/log_error"
+NAME_PKL="$(grep -m 1 -wr '\bname_globals\b' $GLOBALS | awk '{print $3}' | tr -d '"')"
 #------------------------------------------------------------------
 
-python $GLOBALS
-python $STATICS $PKL
-
-#------- Pre processing -----------------------
-echo "Preprocessing catalogue ..."
-python $PATH_SKM/preprocess.py $PKL >> $LOG_OUT 2>> $LOG_ERR
-#----------------------------------------------
-
-#----- Split catalogue -------------------------------------
-echo "Splitting catalogue ..."
-python $PATH_SKM/split.py $PKL >> $LOG_OUT 2>> $LOG_ERR
-#-----------------------------------------------------------
-
-#---------------- Launch parts --------------------------
-for PRC in $(eval echo "{1..$TNP}")
+#================ Loop over models ============================================
+for model in "${MODELS[@]}"
 do
-	echo "Launching part $PRC of $TNP"
-	sed s/XXX/$PRC/g $PATH_SKM/fit.py > tmp.py
-	python tmp.py $PKL >> $LOG_OUT 2>> $LOG_ERR &
-	sleep 30
-	rm tmp.py
+	echo "Running on $model model ..."
+
+	#--------- Local variables -------
+	PATH_MDL=$PATH_BSE$model
+	PKL=$PATH_MDL"/"$NAME_PKL
+	GLOBALS_MDL=$PATH_MDL"/globals.py"
+	LOG_OUT=${PATH_MDL}"/log_out"
+	LOG_ERR=${PATH_MDL}"/log_error"
+	#--------------------------------
+
+	#----- Create model directory and global file -------
+	mkdir -p $PATH_MDL
+	sed s/XXX/"$model"/g $GLOBALS > $GLOBALS_MDL
+	#---------------------------------------------------
+
+	#------ Launch global variables file ------
+	python $GLOBALS_MDL
+	python $STATICS $PKL
+	#-----------------------------------------
+
+
+	#------- Pre processing -----------------------
+	echo "Preprocessing catalogue ..."
+	python $PATH_SKM/preprocess.py $PKL >> $LOG_OUT 2>> $LOG_ERR
+	#----------------------------------------------
+
+	#----- Split catalogue -------------------------------------
+	echo "Splitting catalogue ..."
+	python $PATH_SKM/split.py $PKL >> $LOG_OUT 2>> $LOG_ERR
+	#-----------------------------------------------------------
+
+	#=========== Loop over parts ======================
+	for PRC in $(eval echo "{1..$TNP}")
+	do
+		echo "Launching part $PRC of $TNP"
+		sed s/XXX/$PRC/g $PATH_SKM/fit.py > tmp.py
+		python tmp.py $PKL >> $LOG_OUT 2>> $LOG_ERR &
+		sleep 30
+		rm tmp.py
+	done
+	#==================================================
+
+	echo "Waiting for $model processes to finish ..."
+	wait
+
+	#--------- Unify outputs ------------------------------
+	python $PATH_SKM/unify.py $PKL >> $LOG_OUT 2>> $LOG_ERR
+	#------------------------------------------------------
+
 done
-#-------------------------------------------------------
-
-echo "Waiting for all processes to finish ..."
-wait
-
-#--------- Unify outputs ------------------------------
-python $PATH_SKM/unify.py $PKL >> $LOG_OUT 2>> $LOG_ERR
-#------------------------------------------------------
+#==============================================================================
