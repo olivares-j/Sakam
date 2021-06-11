@@ -32,4 +32,4 @@ grouped_df = df.groupby("Groups")
 
 #--- Write each chunk -----
 for g in range(1,size+1):
-	grouped_df.get_group(g).to_csv(dir_chunks + "/data_{0}_of_{1}.csv".format(g,size))
+	grouped_df.get_group(g).to_csv(dir_chunks + "data_{0}_of_{1}.csv".format(g,size))
