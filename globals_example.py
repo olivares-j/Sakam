@@ -1,14 +1,26 @@
 import dill
+############ NOTE ##################################
+#### DO NOT ADD VARIABLES NEITHER COMPOSE THEM #####
+#### THE BASH FILE WILL NOT RECOGNIZE THEM     #####
+####################################################
 
 #----------- Split ------------------------------
 # Number of processes/parts to partition the data
-size = 1
+size = 4
 #------------------------------------------------
 
+#------ Models --------------------------------------
+age = "3Myr"
+# NOTE The following variable is read by the bash script
+models = ["BT-Settl","PARSEC","MIST","PMB"]
+model = "XXX"
+#----------------------------------------------------
+
 #-------------- Directories ----------------------------------
-dir_sakam       = "/home/javier/Repositories/Sakam"
-dir_base        = "/home/javier/Cumulos/Perseus/Data/Groups/K7/"
-dir_main        = "/home/javier/Cumulos/Perseus/Data/Groups/K7/Sakam/"
+dir_sakam  = "/home/javier/Repositories/Sakam"
+dir_models = "/home/javier/Cumulos/Perseus/Models/"
+dir_base   = "/home/javier/Cumulos/Perseus/Data/Groups/K8/"
+dir_main   = dir_base + "/" + model + "/"
 #-------------------------------------------------------------
 
 #------- Global variables ------------------
@@ -17,9 +29,9 @@ file_globals   = dir_main + name_globals
 #--------------------------------------------
 
 #---------- Input files --------------------------------------------------
-file_isochrone  = "/home/javier/Cumulos/Perseus/Models/BT-Settl_5Myr.csv"
-file_photometry = dir_base + "members+2MASS+PanSTARRS.csv"
-file_distances  = dir_base + "Kalkayotl/Sources_statistics.csv"
+file_isochrone  = dir_models + model + "_" + age + ".csv"
+file_photometry = dir_base   + "members+2MASS+PanSTARRS.csv"
+file_distances  = dir_base   + "Kalkayotl/Sources_statistics.csv"
 #------------------------------------------------------------------------
 
 #---------- Output files ------------------------------
@@ -45,7 +57,7 @@ panstarrs_errors = ["e_gmag","e_rmag","e_imag","e_zmag","e_ymag"]
 
 #--------------------- Isochrone -----------------------------------------
 variate      = "Mass"
-max_variate  = 3.5
+max_variate  = 10.0
 # THe following are the covariates in the isochrone
 # !!!!!! KEEP THE SAME ORDER AS IN OBSERVED PHOTOMETRY !!!!!!!!!!!!!
 gaia_covs      = ['G_BPmag','Gmag','G_RPmag',]
@@ -72,21 +84,23 @@ add_unc = 0.05
 
 
 #-- Prior and hyper-parameter -----
-prior_variate = "Chabrier"
+prior = {"variate":"Chabrier",
+         "Av":"Uniform"
+        }
 
-hyper = {  "alpha_Av":1.0,
-           "beta_Av":2.0,
-           "beta_sd_b":1.0,
-           "beta_sd_m":0.1}
+hyper = {"loc_Av":0.0,
+         "scl_Av":10.0,
+         "beta_sd_b":1.0,
+         "beta_sd_m":0.1}
 #------------------------------------
 
 #------- Running -------
 iterations = 4000
 walkers_ratio = 4
 burnin_fraction = 0.5
-# Parameters of solution
+# Hyper-parameters to generate initial solution
 initial_hyper = {
-		"loc_variate":1.0,
+		"loc_variate":0.2,
         "scl_variate":0.1,
         "loc_Av":0.05,
         "scl_Av":0.01,

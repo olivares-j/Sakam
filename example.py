@@ -24,24 +24,23 @@ import os
 from sakam import Sakam
 
 ############### Files and directories #########################################
-dir_main        = "/home/javier/Cumulos/Taurus/Sakam"
-# dir_main        = "/raid/jromero/OCs/Taurus/Sakam"
+dir_main        = "/home/javier/Cumulos/Perseus/Data/Groups/K8/BT-Settl/"
 dir_plots       = dir_main + "plots"
 #---------- Input files --------------------------
-file_isochrone  = dir_main + "/data/colibri_1Myr.csv"
-file_data       = dir_main + "/data/Absolute_magnitudes.csv"
-file_samples    = dir_main + "/samples.h5"
-file_statistics = dir_main + "/statistics.csv"
+file_isochrone  = "/home/javier/Cumulos/Perseus/Models/BT-Settl_3Myr.csv"
+file_data       = dir_main + "Absolute_magnitudes.csv"
+file_samples    = dir_main + "samples.h5"
+file_statistics = dir_main + "statistics.csv"
 
 os.makedirs(dir_plots,exist_ok=True)
 ######################################################################
 
 ########################### VARIABLES COLIBRI ##########################
-variate      = "Mini"
-max_variate  = 3.5
+variate      = "Mass"
+max_variate  = 10.0
 covariates   = ['G_BPmag','Gmag','G_RPmag',
                 'gP1mag','rP1mag','iP1mag','zP1mag','yP1mag',
-                'Jmag','Hmag','Ksmag']
+                'Jmag','Hmag','Kmag']
 #-- The following value transforms the visual extinction to each of the bands --------
 av2al        = [1.06794,0.85926,0.65199,1.16529,0.86813,
                 0.67659,0.51743,0.43092,0.29434,0.18128,0.11838]
@@ -49,7 +48,7 @@ av2al        = [1.06794,0.85926,0.65199,1.16529,0.86813,
 
 ###################### DATA ##################################################
 identifier   = 'source_id'
-init_variate = 'init_mass' # In case you have an initial guess of the value. Optional column.
+init_variate = None # In case you have an initial guess of the value. Optional column.
 observables   = ['abs_bp','abs_g','abs_rp',
                 'abs_gmag','abs_rmag','abs_imag','abs_zmag','abs_ymag',
                 'abs_Jmag','abs_Hmag','abs_Kmag']
@@ -59,15 +58,17 @@ uncertainties  = ['abs_bp_error','abs_g_error','abs_rp_error',
 
 ########################################################################################################################
 
+
 #-- Prior and hyper-parameter -----
-prior_variate="Chabrier"
+prior = {"variate":"Chabrier",
+         "Av":"Uniform"
+        }
 
-hyper = {  "alpha_Av":1.0,
-           "beta_Av":2.0,
-           "beta_sd_b":1.0,
-           "beta_sd_m":0.1}
+hyper = {"loc_Av":0.0,
+         "scl_Av":10.0,
+         "beta_sd_b":1.0,
+         "beta_sd_m":0.1}
 #------------------------------------
-
 
 #------ Preprocessing ----------------------------
 n_obs_min = 3 # Minimum number of observed bands
@@ -77,9 +78,9 @@ n_obs_min = 3 # Minimum number of observed bands
 iterations = 4000
 walkers_ratio = 4
 burnin_fraction = 0.5
-# Parameters of solution
+# Hyper-parameters to generate initial solution
 initial_hyper = {
-        "loc_variate":1.0,
+        "loc_variate":0.2,
         "scl_variate":0.1,
         "loc_Av":0.05,
         "scl_Av":0.01,
@@ -88,17 +89,18 @@ initial_hyper = {
         }
 #-----------------------
 
-
 #-------- Plots and statistics -------------
-plots_scale = "log"
-quantiles   = [0.16,0.84]
-name_variate= r"Mass $[\mathrm{M_{\odot}}]$"
+plots_scale  = "log"
+quantiles    = [0.16,0.84]
+name_variate = r"Mass $[\mathrm{M_{\odot}}]$"
 #-------------------------------------------
 
 
 ####################### RUN ################################
 sakam = Sakam(file_samples=file_samples,
+                prior=prior,
                 hyperparameters=hyper,
+                initial_hyper=initial_hyper,
                 quantiles=quantiles,
                 name_variate=name_variate)
 
@@ -113,13 +115,12 @@ sakam.load_data(file_data=file_data,
                     bands=observables,
                     errors=uncertainties,
                     nan_threshold=n_obs_min,
-                    init_variate=init_variate)
+                    init_variate=init_variate,
+                    nrows=2)
 
 sakam.run(iterations=iterations,
             walkers_ratio=walkers_ratio,
-            burnin_fraction=burnin_fraction,
-            prior_variate=prior_variate,
-            initial_hyper=initial_hyper)
+            burnin_fraction=burnin_fraction)
 
 sakam.plots(dir_plots=dir_plots,scale=plots_scale)
 
