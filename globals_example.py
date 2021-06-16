@@ -9,10 +9,15 @@ import dill
 size = 4
 #------------------------------------------------
 
+#------ Ages --------------------------
+ages = [1,3,5,7,10]
+age  = "YYY"
+#-------------------------------------
+
 #------ Models --------------------------------------
-age = "3Myr"
 # NOTE The following variable is read by the bash script
-models = ["BT-Settl","PARSEC","MIST","PMB"]
+models = ["PMB"] 
+#,"PARSEC","MIST","PMB"]
 model = "XXX"
 #----------------------------------------------------
 
@@ -20,7 +25,7 @@ model = "XXX"
 dir_sakam  = "/home/javier/Repositories/Sakam"
 dir_models = "/home/javier/Cumulos/Perseus/Models/"
 dir_base   = "/home/javier/Cumulos/Perseus/Data/Groups/K8/"
-dir_main   = dir_base + "/" + model + "/"
+dir_main   = dir_base + "/" + model + "/" + age + "/"
 #-------------------------------------------------------------
 
 #------- Global variables ------------------
@@ -29,7 +34,7 @@ file_globals   = dir_main + name_globals
 #--------------------------------------------
 
 #---------- Input files --------------------------------------------------
-file_isochrone  = dir_models + model + "_" + age + ".csv"
+file_isochrone  = dir_models + model + "_" + age + "Myr.csv"
 file_photometry = dir_base   + "members+2MASS+PanSTARRS.csv"
 file_distances  = dir_base   + "Kalkayotl/Sources_statistics.csv"
 #------------------------------------------------------------------------

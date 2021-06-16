@@ -18,6 +18,7 @@ fi
 
 #----- Read models list into bash array
 IFS=',' read -r -a MODELS <<< $(grep -m 1 models $GLOBALS | awk '{print $3}' | tr -d '[]"')
+IFS=',' read -r -a AGES <<< $(grep -m 1 ages $GLOBALS | awk '{print $3}' | tr -d '[]"')
 TNP="$(grep -m 1 size $GLOBALS | awk '{print $3}')"
 PATH_BSE="$(grep -m 1 dir_base $GLOBALS | awk '{print $3}' | tr -d '"')"
 PATH_SKM="$(grep -m 1 dir_sakam $GLOBALS | awk '{print $3}' | tr -d '"')"
@@ -28,54 +29,64 @@ NAME_PKL="$(grep -m 1 -wr '\bname_globals\b' $GLOBALS | awk '{print $3}' | tr -d
 #================ Loop over models ============================================
 for model in "${MODELS[@]}"
 do
-	echo "Running on $model model ..."
-
 	#--------- Local variables -------
 	PATH_MDL=$PATH_BSE$model
-	PKL=$PATH_MDL"/"$NAME_PKL
-	GLOBALS_MDL=$PATH_MDL"/globals.py"
-	LOG_OUT=${PATH_MDL}"/log_out"
-	LOG_ERR=${PATH_MDL}"/log_error"
+	mkdir -p $PATH_MDL
 	#--------------------------------
 
-	#----- Create model directory and global file -------
-	mkdir -p $PATH_MDL
-	sed s/XXX/"$model"/g $GLOBALS > $GLOBALS_MDL
-	#---------------------------------------------------
-
-	#------ Launch global variables file ------
-	python $GLOBALS_MDL
-	python $STATICS $PKL
-	#-----------------------------------------
-
-
-	#------- Pre processing -----------------------
-	echo "Preprocessing catalogue ..."
-	python $PATH_SKM/preprocess.py $PKL >> $LOG_OUT 2>> $LOG_ERR
-	#----------------------------------------------
-
-	#----- Split catalogue -------------------------------------
-	echo "Splitting catalogue ..."
-	python $PATH_SKM/split.py $PKL >> $LOG_OUT 2>> $LOG_ERR
-	#-----------------------------------------------------------
-
-	#=========== Loop over parts ======================
-	for PRC in $(eval echo "{1..$TNP}")
+	#================ Loop over ages ============================================
+	for age in "${AGES[@]}"
 	do
-		echo "Launching part $PRC of $TNP"
-		sed s/XXX/$PRC/g $PATH_SKM/fit.py > $PATH_MDL/tmp.py
-		python $PATH_MDL/tmp.py $PKL >> $LOG_OUT 2>> $LOG_ERR &
-		sleep 10
-		rm $PATH_MDL/tmp.py
+		echo "Running with $model model at $age Myr ..."
+
+		#--------- Local variables -------
+		PATH_AGE=$PATH_MDL"/"$age
+		mkdir -p $PATH_AGE
+		#--------------------------------
+
+		PKL=$PATH_AGE"/"$NAME_PKL
+		GLBLS=$PATH_AGE"/globals.py"
+		LOG_OUT=${PATH_AGE}"/log_out"
+		LOG_ERR=${PATH_AGE}"/log_error"
+		#--------------------------------
+
+		#----- Create global variables file -------
+		sed -e "s|XXX|$model|g" -e "s|YYY|$age|g" $GLOBALS > $GLBLS
+		#---------------------------------------------------
+
+		#------ Launch global variables file ------
+		python $GLBLS
+		python $STATICS $PKL
+		#-----------------------------------------
+
+
+		#------- Pre processing -----------------------
+		echo "Preprocessing catalogue ..."
+		python $PATH_SKM/preprocess.py $PKL >> $LOG_OUT 2>> $LOG_ERR
+		#----------------------------------------------
+
+		#----- Split catalogue -------------------------------------
+		echo "Splitting catalogue ..."
+		python $PATH_SKM/split.py $PKL >> $LOG_OUT 2>> $LOG_ERR
+		#-----------------------------------------------------------
+
+		#=========== Loop over parts ======================
+		for PRC in $(eval echo "{1..$TNP}")
+		do
+			echo "Launching part $PRC of $TNP"
+			sed s/XXX/$PRC/g $PATH_SKM/fit.py > $PATH_AGE/tmp.py
+			python $PATH_AGE/tmp.py $PKL >> $LOG_OUT 2>> $LOG_ERR &
+			sleep 10
+			rm $PATH_AGE/tmp.py
+		done
+		#==================================================
+
+		echo "Waiting for $model-$age Myr processes to finish ..."
+		wait
+
+		#--------- Unify outputs ------------------------------
+		python $PATH_SKM/unify.py $PKL >> $LOG_OUT 2>> $LOG_ERR
+		#------------------------------------------------------
 	done
-	#==================================================
-
-	echo "Waiting for $model processes to finish ..."
-	wait
-
-	#--------- Unify outputs ------------------------------
-	python $PATH_SKM/unify.py $PKL >> $LOG_OUT 2>> $LOG_ERR
-	#------------------------------------------------------
-
 done
 #==============================================================================
