@@ -15,8 +15,8 @@ h5 = h5py.File(file_samples,'w')
 dfs = []
 for i in range(1,size+1):
 	#------------- Files ---------------------------------------------
-	file_samp  = dir_chunks + "/samples_{0}_of_{1}.h5".format(i,size)
-	file_stat  = dir_chunks + "/statistics_{0}_of_{1}.csv".format(i,size)
+	file_samp  = dir_chunks + "samples_{0}_of_{1}.h5".format(i,size)
+	file_stat  = dir_chunks + "statistics_{0}_of_{1}.csv".format(i,size)
 	#-----------------------------------------------------------------
 
 	#------------- Load data frames into list --------------------------------
@@ -35,7 +35,7 @@ for i in range(1,size+1):
 			dset = ngrp.create_dataset("SD",     data=ogrp.get("SD"))
 			dset = ngrp.create_dataset("CI",     data=ogrp.get("CI"))
 			dset = ngrp.create_dataset("sample", data=ogrp.get("sample"))
-			dset = ngrp.create_dataset("prior", data=ogrp.get("prior"))
+			dset = ngrp.create_dataset("prior",  data=ogrp.get("prior"))
 			h5.flush()
 	#-----------------------------------------------------------------
 
