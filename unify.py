@@ -35,6 +35,7 @@ for i in range(1,size+1):
 			dset = ngrp.create_dataset("SD",     data=ogrp.get("SD"))
 			dset = ngrp.create_dataset("CI",     data=ogrp.get("CI"))
 			dset = ngrp.create_dataset("sample", data=ogrp.get("sample"))
+			dset = ngrp.create_dataset("prior", data=ogrp.get("prior"))
 			h5.flush()
 	#-----------------------------------------------------------------
 
