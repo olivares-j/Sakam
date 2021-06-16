@@ -63,10 +63,11 @@ do
 	for PRC in $(eval echo "{1..$TNP}")
 	do
 		echo "Launching part $PRC of $TNP"
-		sed s/XXX/$PRC/g $PATH_SKM/fit.py > tmp.py
+		RND=$RANDOM
+		sed s/XXX/$PRC/g $PATH_SKM/fit.py > tmp_$RND.py
 		python tmp.py $PKL >> $LOG_OUT 2>> $LOG_ERR &
 		sleep 10
-		rm tmp.py
+		rm tmp_$RND.py
 	done
 	#==================================================
 
