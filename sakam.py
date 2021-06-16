@@ -44,9 +44,9 @@ class posterior_variate:
     This class provides flexibility to infer the posterior distribution of the variate given the absolute magnitudes
     It also infers the extinction nu
     """
-    def __init__(self,observed,uncert,init_variate,N_bands,variate2phot,av2al,hyper,walkers_ratio,
-                    prior_variate="Uniform",min_variate=0.1,max_variate=10,
-                    initial_hyper=None,
+    def __init__(self,observed,uncert,N_bands,variate2phot,av2al,prior,hyper,
+                    initial_hyper=None,walkers_ratio=2,
+                    min_variate=0.1,max_variate=10,
                     burnin_frac=0.2,quantiles=[2.5,97.5]):
 
         
@@ -56,9 +56,8 @@ class posterior_variate:
         self.max_variate = max_variate
         self.min_variate = min_variate
         self.N_bands     = N_bands
-        self.variate2phot   = variate2phot
+        self.variate2phot = variate2phot
         self.av2al       = av2al
-        self.quantiles   = quantiles
 
         if initial_hyper is None:
             initial_hyper = {
@@ -78,22 +77,34 @@ class posterior_variate:
         self.idx = idx
         self.obs = o_phot
         self.unc = u_phot
-        ################################# PRIORS ######################################################
 
-        prior_Av   = st.gamma(a=hyper["alpha_Av"],scale=hyper["beta_Av"])
+        ################################# PRIORS ######################################################
+        #------------- Mass -------------------------------------------------------
+        if prior["variate"]=="Uniform":
+            prior_Ms = st.uniform(loc=min_variate,scale=max_variate-min_variate)
+        elif prior["variate"] == "Half-Cauchy":
+            prior_Ms = st.halfcauchy(loc=0.0,scale=100.0)
+        elif prior["variate"] == "Chabrier":
+            prior_Ms = st.lognorm(s=0.55,loc=np.log(0.2))
+        else:
+            sys.exit("Incorrect prior distribution")
+        #------------------------------------------------------------------------
+
+        #------------- Extinction ------------------------------------------------
+        if prior["Av"] == "Gamma":
+            prior_Av   = st.gamma(a=hyper["loc_Av"],scale=hyper["scl_Av"])
+        elif prior["Av"] == "Uniform":
+            prior_Av   = st.uniform(loc=hyper["loc_Av"],scale=hyper["scl_Av"])
+        else:
+            sys.exit("Incorrect prior distribution")
+        #------------------------------------------------------------------------
+
+        #--------------- Extra ---------------------------------------------
         prior_Pb   = st.uniform(loc=0,scale=1.0)
         prior_Yb   = st.norm(loc=np.mean(o_phot),scale=5.0*np.std(o_phot))
         prior_sd_b = st.gamma(a=2.0,scale=hyper["beta_sd_b"])
         prior_sd_m = st.gamma(a=2.0,scale=hyper["beta_sd_m"])
-
-        if prior_variate=="Uniform":
-            prior_Ms = st.uniform(loc=min_variate,scale=max_variate-min_variate)
-        elif prior_variate == "Half-Cauchy":
-            prior_Ms = st.halfcauchy(loc=0.0,scale=100.0)
-        elif prior_variate == "Chabrier":
-            prior_Ms = st.lognorm(s=0.55,loc=np.log(0.2))
-        else:
-            sys.exit("Incorrect prior type")
+        #-------------------------------------------------------------------
 
 
         def lnprior(theta):
@@ -106,13 +117,16 @@ class posterior_variate:
             return lp_Ms+lp_Av+lp_Pb+lp_Yb+lp_sd_b+lp_sd_m
 
         #------------ Initial positions --------------------------------------
-        a = (min_variate - init_variate) / initial_hyper["scl_variate"] 
-        b = (max_variate - init_variate) / initial_hyper["scl_variate"]
+        a = (min_variate - initial_hyper["loc_variate"]) / initial_hyper["scl_variate"] 
+        b = (max_variate - initial_hyper["loc_variate"]) / initial_hyper["scl_variate"]
         self.pos0 = [
                 np.array([
-                st.truncnorm.rvs(a,b,loc=init_variate,scale=initial_hyper["scl_variate"],size=1)[0],
-                st.halfnorm.rvs(loc=initial_hyper["loc_Av"],scale=initial_hyper["scl_Av"],size=1)[0],
-                st.halfnorm.rvs(loc=initial_hyper["loc_Pb"],scale=initial_hyper["scl_Pb"],size=1)[0],
+                st.truncnorm.rvs(a,b,loc= initial_hyper["loc_variate"] ,
+                                scale=initial_hyper["scl_variate"],size=1)[0],
+                st.halfnorm.rvs(loc=initial_hyper["loc_Av"],
+                                scale=initial_hyper["scl_Av"],size=1)[0],
+                st.halfnorm.rvs(loc=initial_hyper["loc_Pb"],
+                                scale=initial_hyper["scl_Pb"],size=1)[0],
                 prior_Yb.rvs(size=1)[0],
                 prior_sd_b.rvs(size=1)[0],
                 prior_sd_m.rvs(size=1)[0]
@@ -120,7 +134,19 @@ class posterior_variate:
                 for i in range(self.nwalkers)]
 
         self.lnprior = lnprior
+        #-------------------------------------------------------------------
 
+        #---------- Prior RVS ------------------------------------------------
+        def prior_sample(n):
+            smp = np.array([prior_Ms.rvs(size=n),
+                            prior_Av.rvs(size=n),
+                            prior_Pb.rvs(size=n),
+                            prior_Yb.rvs(size=n),
+                            prior_sd_b.rvs(size=n),
+                            prior_sd_m.rvs(size=n)])
+            return smp.T 
+
+        self.prior_rvs = prior_sample
         ############################################################################################
 
     ############################# LIKELIHOOD ###############################################
@@ -167,31 +193,33 @@ class posterior_variate:
         sampler.run_mcmc(self.pos0,N_iter)
         sample = sampler.chain[:,int(self.burnin_frac*N_iter):,:]
 
-        #-----MAP ----
-        ind_map = np.unravel_index(np.argmax(sampler.lnprobability),np.shape(sampler.lnprobability))
+        #-----MAP ------------------------------------------------------------
+        ind_map = np.unravel_index(np.argmax(sampler.lnprobability),
+                                   np.shape(sampler.lnprobability))
         MAP  = sampler.chain[ind_map[0],ind_map[1],:]
-        #-----------
-        Median = np.median(sample,axis=(0,1))
-        #----- SD ------
-        SD  = np.std(sample,axis=(0,1))
-        #---- CI 95% and median ---------
-        CI  = np.quantile(sample,axis=(0,1),q=self.quantiles)
+        #-------------------------------------------------------------
 
-        return MAP,Median,SD,CI,sample,np.mean(sampler.acceptance_fraction)
+        #-------- Prior sample ---------------------------------
+        prior = self.prior_rvs(sample.shape[0]*sample.shape[1])
+        #--------------------------------------------------------
+
+        return MAP,sample,prior,np.mean(sampler.acceptance_fraction)
 
 class Sakam:
-    def __init__(self,file_samples,hyperparameters=None,
+    def __init__(self,file_samples,prior,hyperparameters=None,initial_hyper=None,
                 quantiles=[0.16,0.84],name_variate=r"Mass $[\mathrm{M_{\odot}}]$"):
 
         self.name_parameters = [name_variate,r"Av", r"$Pb$", r"$Yb$",r"$Sdb$",r"$Sdm$"]
         self.quantiles       = quantiles
+        self.prior           = prior
         self.hyper           = hyperparameters
+        self.initial_hyper   = initial_hyper
         self.n_parameters    = len(self.name_parameters)
 
         #-------- Hyper-parameters --------------
         if hyperparameters is None:
-            self.hyper = {  "alpha_Av":1.0,
-                            "beta_Av":2.0,
+            self.hyper = {  "loc_Av":1.0,
+                            "scl_Av":2.0,
                             "beta_sd_b":1.0,
                             "beta_sd_m":0.1}
 
@@ -263,8 +291,7 @@ class Sakam:
         ############################################################################################
 
 
-    def run(self,iterations=4000,walkers_ratio=4,burnin_fraction=0.5,prior_variate="Chabrier",
-            initial_hyper=None):
+    def run(self,iterations=4000,walkers_ratio=4,burnin_fraction=0.5):
         #--------- Use existing sources ------------------
         if os.path.exists(self.file_samples):
             print("Using existing samples")
@@ -285,33 +312,42 @@ class Sakam:
         for ID,datum in self.data.iterrows():
             grp = self.fh5.create_group(ID)
 
+            init_hyper = self.initial_hyper
+
+            init_hyper["loc_variate"] = datum[self.init_variate],
+
             #------ Initialize the module --------
             Module = posterior_variate(
                     observed=datum[self.bands].values,
                     uncert=datum[self.errors].values,
-                    init_variate=datum[self.init_variate],
                     N_bands=self.n_bands,
                     variate2phot=self.variate2phot,
                     av2al=self.av2al,
+                    prior=self.prior,
                     hyper=self.hyper,
+                    initial_hyper=init_hyper,
                     walkers_ratio=walkers_ratio,
-                    prior_variate=prior_variate,
                     min_variate=self.min_variate,
                     max_variate=self.max_variate,
-                    initial_hyper=initial_hyper,
-                    quantiles=self.quantiles,
                     burnin_frac=burnin_fraction)
 
             #------- run the module -------------------------------------------------------------
-            MAP,Median,SD,CI,sample,acceptance_fraction = Module.run(N_iter=iterations)
+            MAP,pos_smp,pri_smp,acc_fraction = Module.run(N_iter=iterations)
+
+            #----------- Statistics ----------------------------------
+            Median = np.median(pos_smp,axis=(0,1))
+            SD  = np.std(pos_smp,axis=(0,1))
+            CI  = np.quantile(pos_smp,axis=(0,1),q=self.quantiles)
+            #---------------------------------------------------------
 
             #------- Save ------------------------------------
             dset = grp.create_dataset("MAP",    data=MAP)
             dset = grp.create_dataset("Median", data=Median)
             dset = grp.create_dataset("SD",     data=SD)
             dset = grp.create_dataset("CI",     data=CI)
-            dset = grp.create_dataset("sample", data=sample)
-            dset = grp.create_dataset("acc", data=acceptance_fraction)
+            dset = grp.create_dataset("sample", data=pos_smp)
+            dset = grp.create_dataset("prior",  data=pri_smp)
+            dset = grp.create_dataset("acc",    data=acc_fraction)
             self.fh5.flush()
 
             #----- update bar ----
@@ -339,6 +375,7 @@ class Sakam:
             MAP     = np.array(grp.get("MAP"))
             CI      = np.array(grp.get("CI"))
             sample  = np.array(grp.get("sample"))
+            prior   = np.array(grp.get("prior"))
             acc     = np.array(grp.get("acc"))
 
             if acc < 0.2:
@@ -347,7 +384,7 @@ class Sakam:
             self.plot_source(dir_plots,ID,
                     datum[self.bands].values,
                     datum[self.errors].values,
-                    sample,MAP,CI,scale=scale)
+                    sample,prior,MAP,CI,scale=scale)
 
         fh5.close()
 
@@ -390,7 +427,7 @@ class Sakam:
         out = pd.DataFrame(data)
         out.to_csv(path_or_buf=file_statistics,index=False)
 
-    def plot_source(self,dir_plots,ID,observed,uncert,sample,MAP,CI,scale):
+    def plot_source(self,dir_plots,ID,observed,uncert,sample,prior,MAP,CI,scale):
         file_plot = dir_plots+"/source_{0}.pdf".format(str(ID))
 
         pdf = PdfPages(filename=file_plot)
@@ -454,16 +491,32 @@ class Sakam:
         plt.close()
 
 
-        # Corner plot
+        #============================ Corner plot ===========================================
         sample_flatten = sample.reshape((sample.shape[0]*sample.shape[1],sample.shape[2]))
-        fig = plt.figure()
+
         figure = corner.corner(sample_flatten, labels=self.name_parameters,truths=MAP,
                     truth_color="red",
                     quantiles=self.quantiles,
                     show_titles=True, 
-                    title_kwargs={"fontsize": 12})
+                    title_kwargs={"fontsize": 12},
+                    hist_kwargs={"density":True})
+
+        #---------- Plot prior distributions --------------------
+        axes = np.array(figure.axes).reshape((6,6))
+
+        # Loop over the diagonal
+        for i in range(6):
+            ax = axes[i, i]
+            xlim = ax.get_xlim()
+            ylim = ax.get_ylim()
+            ax.hist(prior[:,i],density=True,histtype="step",color="g",zorder=-1)
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+
+        #-------------------------------------------------------
         pdf.savefig(bbox_inches='tight')
         plt.close() 
+        #===================================================================================
         pdf.close()
 
 

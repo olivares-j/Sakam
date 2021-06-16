@@ -21,7 +21,9 @@ file_stat  = dir_chunks + "/statistics_{0}_of_{1}.csv".format(XXX,size)
 
 #======================================================================
 sakam = Sakam(file_samples=file_samp,
+				prior=prior,
 				hyperparameters=hyper,
+				initial_hyper=initial_hyper,
 				quantiles=quantiles,
 				name_variate=name_variate)
 
@@ -40,9 +42,7 @@ sakam.load_data(file_data=file_chunk,
 
 sakam.run(iterations=iterations,
 			walkers_ratio=walkers_ratio,
-			burnin_fraction=burnin_fraction,
-			prior_variate=prior_variate,
-			initial_hyper=initial_hyper)
+			burnin_fraction=burnin_fraction)
 
 sakam.plots(dir_plots=dir_plots,scale=plots_scale)
 
