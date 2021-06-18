@@ -102,9 +102,9 @@ hyper = {"loc_Av":0.0,
 #------------------------------------
 
 #------- Running -------
-iterations = 4000
+iterations = 3000
 walkers_ratio = 4
-burnin_fraction = 0.5
+burnin_fraction = 0.66667
 # Hyper-parameters to generate initial solution
 initial_hyper = {
 		"loc_variate":0.2,
