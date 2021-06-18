@@ -10,7 +10,7 @@ from matplotlib.backends.backend_pdf import PdfPages
 #---------- Input files --------------------------------------------------
 dir_   = "/home/javier/Cumulos/Perseus/Models/"
 models = ["PARSEC","MIST","BT-Settl"]
-ages   = ["1","3","5","7","10"]
+ages   = ["1","2","3","4","5","6","7","8","9","10"]
 #------------------------------------------------------------------------
 
 #---------- Output file ------------------------------
