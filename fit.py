@@ -30,7 +30,7 @@ sakam = Sakam(file_samples=file_samp,
 sakam.load_isochrone(file_isochrone=file_isochrone,
                         variate=variate,
                         covariates=covariates,
-                        av2al=av2al,
+                        waves=waves,
                         upper_limit_variate=max_variate)
 
 sakam.load_data(file_data=file_chunk,

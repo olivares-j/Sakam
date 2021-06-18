@@ -68,11 +68,10 @@ max_variate  = 10.0
 gaia_covs      = ['G_BPmag','Gmag','G_RPmag',]
 twomass_covs   = ['Jmag','Hmag','Kmag']
 panstarrs_covs = ['gP1mag','rP1mag','iP1mag','zP1mag','yP1mag']
-# The following values transform the visual extinction 
-# to the extinction in each bands 
-gaia_av2al     = [1.06794,0.85926,0.65199]
-twomass_av2al  = [0.29434,0.18128,0.11838]
-panstarrs_av2al= [1.16529,0.86813,0.67659,0.51743,0.43092]
+# Effective wave lengths  
+gaia_waves     = [5335.42, 6422.01, 7739.17]
+twomass_waves  = [12329.79, 16395.59, 21522.05]
+panstarrs_waves= [4907.71, 6208.38, 7531.06, 8669.70, 9619.44] #6395.40]
 #----------------------------------------------------------------------
 
 #------ Preprocessing ------------------------------
@@ -89,12 +88,15 @@ add_unc = 0.05
 
 
 #-- Prior and hyper-parameter -----
-prior = {"variate":"Chabrier",
-         "Av":"Uniform"
+prior = {"variate":"LogNorm",
+         "Av":"Uniform",
+         "Rv":"Gaussian"
         }
 
 hyper = {"loc_Av":0.0,
          "scl_Av":10.0,
+         "loc_Rv":3.1,
+         "scl_Rv":0.5,
          "beta_sd_b":1.0,
          "beta_sd_m":0.1}
 #------------------------------------
@@ -109,6 +111,8 @@ initial_hyper = {
         "scl_variate":0.1,
         "loc_Av":0.05,
         "scl_Av":0.01,
+        "loc_Rv":3.1,
+        "scl_Rv":0.1,
         "loc_Pb":0.05,
         "scl_Pb":0.01
 		}

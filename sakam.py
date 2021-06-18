@@ -28,6 +28,7 @@ import h5py
 import corner
 import emcee
 import progressbar
+import extinction
 
 
 #---------------- Matplotlib ----------
@@ -44,20 +45,22 @@ class posterior_variate:
     This class provides flexibility to infer the posterior distribution of the variate given the absolute magnitudes
     It also infers the extinction nu
     """
-    def __init__(self,observed,uncert,N_bands,variate2phot,av2al,prior,hyper,
+    def __init__(self,observed,uncert,N_bands,variate2phot,waves,prior,hyper,
                     initial_hyper=None,walkers_ratio=2,
                     min_variate=0.1,max_variate=10,
+                    max_Rv=10.0,
                     burnin_frac=0.2,quantiles=[2.5,97.5]):
 
         
         self.burnin_frac = burnin_frac
-        self.ndim        = 6
+        self.ndim        = 7
         self.nwalkers    = walkers_ratio * self.ndim
         self.max_variate = max_variate
         self.min_variate = min_variate
         self.N_bands     = N_bands
         self.variate2phot = variate2phot
-        self.av2al       = av2al
+        self.waves       = waves
+        self.max_Rv      = max_Rv
 
         if initial_hyper is None:
             initial_hyper = {
@@ -65,6 +68,8 @@ class posterior_variate:
                             "scl_variate":0.1,
                             "loc_Av":0.05,
                             "scl_Av":0.01,
+                            "loc_Rv":3.1,
+                            "scl_Rv":0.5,
                             "loc_Pb":0.05,
                             "scl_Pb":0.01
                             }
@@ -84,7 +89,7 @@ class posterior_variate:
             prior_Ms = st.uniform(loc=min_variate,scale=max_variate-min_variate)
         elif prior["variate"] == "Half-Cauchy":
             prior_Ms = st.halfcauchy(loc=0.0,scale=100.0)
-        elif prior["variate"] == "Chabrier":
+        elif prior["variate"] == "LogNorm":
             prior_Ms = st.lognorm(s=0.55,loc=np.log(0.2))
         else:
             sys.exit("Incorrect prior distribution")
@@ -99,9 +104,18 @@ class posterior_variate:
             sys.exit("Incorrect prior distribution")
         #------------------------------------------------------------------------
 
+        #------------- Rv ------------------------------------------------
+        if prior["Rv"] == "Gaussian":
+            prior_Rv   = st.norm(loc=hyper["loc_Rv"],scale=hyper["scl_Rv"])
+        elif prior["Rv"] == "Uniform":
+            prior_Rv   = st.uniform(loc=hyper["loc_Rv"],scale=hyper["scl_Rv"])
+        else:
+            sys.exit("Incorrect prior distribution")
+        #------------------------------------------------------------------------
+
         #--------------- Extra ---------------------------------------------
         prior_Pb   = st.uniform(loc=0,scale=1.0)
-        prior_Yb   = st.norm(loc=np.mean(o_phot),scale=5.0*np.std(o_phot))
+        prior_Yb   = st.norm(loc=np.mean(o_phot),scale=5.00*np.std(o_phot))
         prior_sd_b = st.gamma(a=2.0,scale=hyper["beta_sd_b"])
         prior_sd_m = st.gamma(a=2.0,scale=hyper["beta_sd_m"])
         #-------------------------------------------------------------------
@@ -110,11 +124,12 @@ class posterior_variate:
         def lnprior(theta):
             lp_Ms   = prior_Ms.logpdf(theta[0])
             lp_Av   = prior_Av.logpdf(theta[1])
-            lp_Pb   = prior_Pb.logpdf(theta[2])
-            lp_Yb   = prior_Yb.logpdf(theta[3])
-            lp_sd_b = prior_sd_b.logpdf(theta[4])
-            lp_sd_m = prior_sd_m.logpdf(theta[5])
-            return lp_Ms+lp_Av+lp_Pb+lp_Yb+lp_sd_b+lp_sd_m
+            lp_Rv   = prior_Rv.logpdf(theta[2])
+            lp_Pb   = prior_Pb.logpdf(theta[3])
+            lp_Yb   = prior_Yb.logpdf(theta[4])
+            lp_sd_b = prior_sd_b.logpdf(theta[5])
+            lp_sd_m = prior_sd_m.logpdf(theta[6])
+            return lp_Ms+lp_Av+lp_Rv+lp_Pb+lp_Yb+lp_sd_b+lp_sd_m
 
         #------------ Initial positions --------------------------------------
         a = (min_variate - initial_hyper["loc_variate"]) / initial_hyper["scl_variate"] 
@@ -125,6 +140,7 @@ class posterior_variate:
                                 scale=initial_hyper["scl_variate"],size=1)[0],
                 st.halfnorm.rvs(loc=initial_hyper["loc_Av"],
                                 scale=initial_hyper["scl_Av"],size=1)[0],
+                prior_Rv.rvs(size=1)[0],
                 st.halfnorm.rvs(loc=initial_hyper["loc_Pb"],
                                 scale=initial_hyper["scl_Pb"],size=1)[0],
                 prior_Yb.rvs(size=1)[0],
@@ -140,6 +156,7 @@ class posterior_variate:
         def prior_sample(n):
             smp = np.array([prior_Ms.rvs(size=n),
                             prior_Av.rvs(size=n),
+                            prior_Rv.rvs(size=n),
                             prior_Pb.rvs(size=n),
                             prior_Yb.rvs(size=n),
                             prior_sd_b.rvs(size=n),
@@ -157,14 +174,15 @@ class posterior_variate:
         '''
         variate = parameters[0] # The variate of the star
         Av   = parameters[1] # Extinction
-        Pb   = parameters[2] # The probability of being an outlier
-        Yb   = parameters[3] # The mean position of the outlier distribution
-        sd_b = parameters[4] # The variance of the outlier distribution
-        sd_m = parameters[5] # The variance added to the photometry
+        Rv   = parameters[2] # Ratio total to selective
+        Pb   = parameters[3] # The probability of being an outlier
+        Yb   = parameters[4] # The mean position of the outlier distribution
+        sd_b = parameters[5] # The variance of the outlier distribution
+        sd_m = parameters[6] # The variance added to the photometry
 
         true_phot = np.array([self.variate2phot[i](variate) for i in range(self.N_bands)])
 
-        redden_phot = true_phot + Av*self.av2al
+        redden_phot = true_phot + extinction.ccm89(self.waves, Av, Rv)
 
         t_phot    = redden_phot[self.idx]
 
@@ -178,9 +196,10 @@ class posterior_variate:
     def lnprob(self,theta):
         not_good_values = (theta[0] > self.max_variate or theta[0] < self.min_variate or 
                            theta[1] < 0.0 or
-                           theta[2] < 0.0 or theta[2] >= 1.0 or 
-                           theta[4] < 0.0 or
-                           theta[5] < 0.0 ) 
+                           theta[2] < 0.0 or theta[2] >= self.max_Rv or
+                           theta[3] < 0.0 or theta[3] >= 1.0 or 
+                           theta[5] < 0.0 or
+                           theta[6] < 0.0 ) 
         if not_good_values:
             return -np.inf
 
@@ -190,7 +209,7 @@ class posterior_variate:
 
     def run(self,N_iter):
         sampler = emcee.EnsembleSampler(self.nwalkers,self.ndim, self.lnprob)
-        sampler.run_mcmc(self.pos0,N_iter)
+        sampler.run_mcmc(self.pos0,N_iter,skip_initial_state_check=True)
         sample = sampler.chain[:,int(self.burnin_frac*N_iter):,:]
 
         #-----MAP ------------------------------------------------------------
@@ -209,7 +228,7 @@ class Sakam:
     def __init__(self,file_samples,prior,hyperparameters=None,initial_hyper=None,
                 quantiles=[0.16,0.84],name_variate=r"Mass $[\mathrm{M_{\odot}}]$"):
 
-        self.name_parameters = [name_variate,r"Av", r"$Pb$", r"$Yb$",r"$Sdb$",r"$Sdm$"]
+        self.name_parameters = [name_variate,r"Av", r"Rv", r"$Pb$", r"$Yb$",r"$Sdb$",r"$Sdm$"]
         self.quantiles       = quantiles
         self.prior           = prior
         self.hyper           = hyperparameters
@@ -220,6 +239,8 @@ class Sakam:
         if hyperparameters is None:
             self.hyper = {  "loc_Av":1.0,
                             "scl_Av":2.0,
+                            "loc_Rv":3.1,
+                            "scl_Rv":0.1,
                             "beta_sd_b":1.0,
                             "beta_sd_m":0.1}
 
@@ -227,7 +248,7 @@ class Sakam:
         self.file_samples    = file_samples
 
 
-    def load_isochrone(self,file_isochrone,variate,covariates,av2al,upper_limit_variate=10.0):
+    def load_isochrone(self,file_isochrone,variate,covariates,waves,upper_limit_variate=10.0):
         cols_isoc    = sum([[variate],covariates],[])
         
         print("Loading isochrone")
@@ -253,7 +274,7 @@ class Sakam:
         print("The range of the variate is [{0:2.2f},{1:2.2f}].".format(self.min_variate,self.max_variate))
         ############################################################################################
 
-        self.av2al = np.array(av2al)
+        self.waves = np.array(waves)
 
 
     def load_data(self,file_data,identifier,bands,errors,
@@ -322,7 +343,7 @@ class Sakam:
                     uncert=datum[self.errors].values,
                     N_bands=self.n_bands,
                     variate2phot=self.variate2phot,
-                    av2al=self.av2al,
+                    waves=self.waves,
                     prior=self.prior,
                     hyper=self.hyper,
                     initial_hyper=init_hyper,
@@ -421,7 +442,10 @@ class Sakam:
                 "upper_variate": cis[:,1,0],
                 "lower_av":   cis[:,0,1],
                 "map_av":      maps[:,1],
-                "upper_av":   cis[:,1,1]
+                "upper_av":   cis[:,1,1],
+                "lower_rv":   cis[:,0,2],
+                "map_rv":      maps[:,2],
+                "upper_rv":   cis[:,1,2]
                 }
         #-------- Save data -------------------------------------
         out = pd.DataFrame(data)
@@ -475,7 +499,8 @@ class Sakam:
         plt.close()
 
         plt.figure()
-        true_phot = np.array([self.variate2phot[j](MAP[0]) for j in range(self.n_bands)]) + MAP[1]*self.av2al
+        true_phot = np.array([self.variate2phot[j](MAP[0]) for j in range(self.n_bands)])
+        true_phot += extinction.ccm89(self.waves, MAP[1], MAP[2])
         x  = np.arange(self.n_bands)
 
         # plt.scatter(x,true_phot-true_phot,yerr=,color="grey",label="Model")
@@ -502,10 +527,10 @@ class Sakam:
                     hist_kwargs={"density":True})
 
         #---------- Plot prior distributions --------------------
-        axes = np.array(figure.axes).reshape((6,6))
+        axes = np.array(figure.axes).reshape((self.n_parameters,self.n_parameters))
 
         # Loop over the diagonal
-        for i in range(6):
+        for i in range(self.n_parameters):
             ax = axes[i, i]
             xlim = ax.get_xlim()
             ylim = ax.get_ylim()

@@ -41,9 +41,9 @@ max_variate  = 10.0
 covariates   = ['G_BPmag','Gmag','G_RPmag',
                 'gP1mag','rP1mag','iP1mag','zP1mag','yP1mag',
                 'Jmag','Hmag','Kmag']
-#-- The following value transforms the visual extinction to each of the bands --------
-av2al        = [1.06794,0.85926,0.65199,1.16529,0.86813,
-                0.67659,0.51743,0.43092,0.29434,0.18128,0.11838]
+#-- Wave-lengths in angstroms--------
+waves = [5335.42, 6422.01, 7739.17, 4907.71, 6208.38, 7531.06, 8669.70, 9619.44,
+                12329.79, 16395.59, 21522.05]
 ############################################################################
 
 ###################### DATA ##################################################
@@ -60,12 +60,15 @@ uncertainties  = ['abs_bp_error','abs_g_error','abs_rp_error',
 
 
 #-- Prior and hyper-parameter -----
-prior = {"variate":"Chabrier",
-         "Av":"Uniform"
+prior = {"variate":"LogNorm",
+         "Av":"Uniform",
+         "Rv":"Gaussian"
         }
 
 hyper = {"loc_Av":0.0,
          "scl_Av":10.0,
+         "loc_Rv":3.1,
+         "scl_Rv":0.5,
          "beta_sd_b":1.0,
          "beta_sd_m":0.1}
 #------------------------------------
@@ -75,15 +78,17 @@ n_obs_min = 3 # Minimum number of observed bands
 #-------------------------------------------------
 
 #------- Running -------
-iterations = 4000
+iterations = 3000
 walkers_ratio = 4
-burnin_fraction = 0.5
+burnin_fraction = 0.66667
 # Hyper-parameters to generate initial solution
 initial_hyper = {
         "loc_variate":0.2,
         "scl_variate":0.1,
         "loc_Av":0.05,
         "scl_Av":0.01,
+        "loc_Rv":3.1,
+        "scl_Rv":0.01,
         "loc_Pb":0.05,
         "scl_Pb":0.01
         }
@@ -94,7 +99,6 @@ plots_scale  = "log"
 quantiles    = [0.16,0.84]
 name_variate = r"Mass $[\mathrm{M_{\odot}}]$"
 #-------------------------------------------
-
 
 ####################### RUN ################################
 sakam = Sakam(file_samples=file_samples,
@@ -107,7 +111,7 @@ sakam = Sakam(file_samples=file_samples,
 sakam.load_isochrone(file_isochrone=file_isochrone,
                         variate=variate,
                         covariates=covariates,
-                        av2al=av2al,
+                        waves=waves,
                         upper_limit_variate=max_variate)
 
 sakam.load_data(file_data=file_data,
@@ -125,4 +129,3 @@ sakam.run(iterations=iterations,
 sakam.plots(dir_plots=dir_plots,scale=plots_scale)
 
 sakam.statistics(file_statistics=file_statistics)
-
