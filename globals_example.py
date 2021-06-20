@@ -10,7 +10,7 @@ size = 4
 #------------------------------------------------
 
 #------ Ages --------------------------
-ages = [1,3,5,7,10]
+ages = [3,5,7,10]
 age  = "YYY"
 #-------------------------------------
 
@@ -78,7 +78,7 @@ panstarrs_waves= [4907.71, 6208.38, 7531.06, 8669.70, 9619.44] #6395.40]
 nan_values = 99.0
 
 # These are the filtering values of BP
-label_BP = None # Use None to avoid the filtering
+label_BP = "bp" # Use None to avoid the filtering
 limit_BP = 15.0
 
 n_obs_min = 3 # Minimum number of observed bands
@@ -88,7 +88,7 @@ add_unc = 0.05
 
 
 #-- Prior and hyper-parameter -----
-prior = {"variate":"LogNorm",
+prior = {"variate":"Chabrier",
          "Av":"Uniform",
          "Rv":"Gaussian"
         }
@@ -97,25 +97,24 @@ hyper = {"loc_Av":0.0,
          "scl_Av":10.0,
          "loc_Rv":3.1,
          "scl_Rv":0.5,
+         "alpha_Pb":[1,19],
          "beta_sd_b":1.0,
          "beta_sd_m":0.1}
 #------------------------------------
 
 #------- Running -------
-iterations = 3000
+iterations = 2000
 walkers_ratio = 4
-burnin_fraction = 0.66667
+burnin_fraction = 0.5
 # Hyper-parameters to generate initial solution
 initial_hyper = {
-		"loc_variate":0.2,
+        "loc_variate":0.1,
         "scl_variate":0.1,
-        "loc_Av":0.05,
-        "scl_Av":0.01,
+        "loc_Av":0.0,
+        "scl_Av":0.1,
         "loc_Rv":3.1,
-        "scl_Rv":0.1,
-        "loc_Pb":0.05,
-        "scl_Pb":0.01
-		}
+        "scl_Rv":0.01,
+        }
 #-----------------------
 
 #-------- Plots and statistics -------------

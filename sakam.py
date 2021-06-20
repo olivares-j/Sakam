@@ -29,6 +29,7 @@ import corner
 import emcee
 import progressbar
 import extinction
+from priors import BrokenPrior,LogNormalPrior,PowerLawPrior
 
 
 #---------------- Matplotlib ----------
@@ -62,18 +63,6 @@ class posterior_variate:
         self.waves       = waves
         self.max_Rv      = max_Rv
 
-        if initial_hyper is None:
-            initial_hyper = {
-                            "loc_variate":1.0,
-                            "scl_variate":0.1,
-                            "loc_Av":0.05,
-                            "scl_Av":0.01,
-                            "loc_Rv":3.1,
-                            "scl_Rv":0.5,
-                            "loc_Pb":0.05,
-                            "scl_Pb":0.01
-                            }
-
         #------------------------------------------------------
         idx     = np.ix_(np.where(np.isfinite(observed))[0])[0]
         o_phot  = observed[idx]
@@ -91,6 +80,12 @@ class posterior_variate:
             prior_Ms = st.halfcauchy(loc=0.0,scale=100.0)
         elif prior["variate"] == "LogNorm":
             prior_Ms = st.lognorm(s=0.55,loc=np.log(0.2))
+        elif prior["variate"] == "Chabrier":
+            # Chabrier 2004, Eq. 2
+            prior_Ms = BrokenPrior(components=[LogNormalPrior(np.log(0.25), 0.55 * np.log(10)),
+                                               PowerLawPrior(-2.35, (1.0, 100.0))], 
+                                   breakpoints=[1.0], 
+                                   bounds=[min_variate,max_variate])
         else:
             sys.exit("Incorrect prior distribution")
         #------------------------------------------------------------------------
@@ -114,7 +109,7 @@ class posterior_variate:
         #------------------------------------------------------------------------
 
         #--------------- Extra ---------------------------------------------
-        prior_Pb   = st.uniform(loc=0,scale=1.0)
+        prior_Pb   = st.dirichlet(alpha=hyper["alpha_Pb"])
         prior_Yb   = st.norm(loc=np.mean(o_phot),scale=5.00*np.std(o_phot))
         prior_sd_b = st.gamma(a=2.0,scale=hyper["beta_sd_b"])
         prior_sd_m = st.gamma(a=2.0,scale=hyper["beta_sd_m"])
@@ -125,7 +120,7 @@ class posterior_variate:
             lp_Ms   = prior_Ms.logpdf(theta[0])
             lp_Av   = prior_Av.logpdf(theta[1])
             lp_Rv   = prior_Rv.logpdf(theta[2])
-            lp_Pb   = prior_Pb.logpdf(theta[3])
+            lp_Pb   = prior_Pb.logpdf(np.array([theta[3],1.-theta[3]]))
             lp_Yb   = prior_Yb.logpdf(theta[4])
             lp_sd_b = prior_sd_b.logpdf(theta[5])
             lp_sd_m = prior_sd_m.logpdf(theta[6])
@@ -136,13 +131,13 @@ class posterior_variate:
         b = (max_variate - initial_hyper["loc_variate"]) / initial_hyper["scl_variate"]
         self.pos0 = [
                 np.array([
-                st.truncnorm.rvs(a,b,loc= initial_hyper["loc_variate"] ,
-                                scale=initial_hyper["scl_variate"],size=1)[0],
-                st.halfnorm.rvs(loc=initial_hyper["loc_Av"],
-                                scale=initial_hyper["scl_Av"],size=1)[0],
-                prior_Rv.rvs(size=1)[0],
-                st.halfnorm.rvs(loc=initial_hyper["loc_Pb"],
-                                scale=initial_hyper["scl_Pb"],size=1)[0],
+                st.truncnorm.rvs(a,b,loc=initial_hyper["loc_variate"] ,
+                            scale=initial_hyper["scl_variate"],size=1)[0],
+                st.uniform(loc=initial_hyper["loc_Av"],
+                            scale=initial_hyper["scl_Av"]).rvs(size=1)[0],
+                st.norm(loc=initial_hyper["loc_Rv"],
+                            scale=initial_hyper["scl_Rv"]).rvs(size=1)[0],
+                st.uniform(loc=0.0,scale=0.05).rvs(size=1)[0],
                 prior_Yb.rvs(size=1)[0],
                 prior_sd_b.rvs(size=1)[0],
                 prior_sd_m.rvs(size=1)[0]
@@ -157,7 +152,7 @@ class posterior_variate:
             smp = np.array([prior_Ms.rvs(size=n),
                             prior_Av.rvs(size=n),
                             prior_Rv.rvs(size=n),
-                            prior_Pb.rvs(size=n),
+                            prior_Pb.rvs(size=n)[:,0],
                             prior_Yb.rvs(size=n),
                             prior_sd_b.rvs(size=n),
                             prior_sd_m.rvs(size=n)])
@@ -218,6 +213,12 @@ class posterior_variate:
         MAP  = sampler.chain[ind_map[0],ind_map[1],:]
         #-------------------------------------------------------------
 
+        #-------- Remove outcast walkers------------------------
+        sd = np.std(sample,axis=(0,1))
+        idx = np.where(np.abs(sample[:,-1,0] - MAP[0]) < 5.*sd[0])[0]
+        sample = sample[idx]
+        #----------------------------------------------------- 
+
         #-------- Prior sample ---------------------------------
         prior = self.prior_rvs(sample.shape[0]*sample.shape[1])
         #--------------------------------------------------------
@@ -236,13 +237,24 @@ class Sakam:
         self.n_parameters    = len(self.name_parameters)
 
         #-------- Hyper-parameters --------------
-        if hyperparameters is None:
+        if self.hyper is None:
             self.hyper = {  "loc_Av":1.0,
                             "scl_Av":2.0,
                             "loc_Rv":3.1,
                             "scl_Rv":0.1,
+                            "alpha_Pb":[1,19],
                             "beta_sd_b":1.0,
                             "beta_sd_m":0.1}
+
+        if self.initial_hyper is None:
+            self.initial_hyper = {
+                            "loc_variate":1.0,
+                            "scl_variate":0.1,
+                            "loc_Av":0.05,
+                            "scl_Av":0.01,
+                            "loc_Rv":3.1,
+                            "scl_Rv":0.5,
+                            }
 
         #-------------- Files --------------------------
         self.file_samples    = file_samples
@@ -308,7 +320,8 @@ class Sakam:
 
         if init_variate is None:
             self.init_variate = "init_variate"
-            self.data.insert(loc=self.data.shape[1],column=self.init_variate,value=1.0)
+            self.data.insert(loc=self.data.shape[1],column=self.init_variate,
+                            value=self.initial_hyper["loc_variate"])
         ############################################################################################
 
 
@@ -335,7 +348,7 @@ class Sakam:
 
             init_hyper = self.initial_hyper
 
-            init_hyper["loc_variate"] = datum[self.init_variate],
+            init_hyper["loc_variate"] = datum[self.init_variate]
 
             #------ Initialize the module --------
             Module = posterior_variate(

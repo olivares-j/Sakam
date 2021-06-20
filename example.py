@@ -24,10 +24,10 @@ import os
 from sakam import Sakam
 
 ############### Files and directories #########################################
-dir_main        = "/home/javier/Cumulos/Perseus/Data/Groups/K8/BT-Settl/"
+dir_main        = "/home/javier/Cumulos/Perseus/Data/Groups/K8/PMB/"
 dir_plots       = dir_main + "plots"
 #---------- Input files --------------------------
-file_isochrone  = "/home/javier/Cumulos/Perseus/Models/BT-Settl_3Myr.csv"
+file_isochrone  = "/home/javier/Cumulos/Perseus/Models/PMB_3Myr.csv"
 file_data       = dir_main + "Absolute_magnitudes.csv"
 file_samples    = dir_main + "samples.h5"
 file_statistics = dir_main + "statistics.csv"
@@ -35,7 +35,7 @@ file_statistics = dir_main + "statistics.csv"
 os.makedirs(dir_plots,exist_ok=True)
 ######################################################################
 
-########################### VARIABLES COLIBRI ##########################
+########################### ISOCHRONE ##########################
 variate      = "Mass"
 max_variate  = 10.0
 covariates   = ['G_BPmag','Gmag','G_RPmag',
@@ -59,8 +59,9 @@ uncertainties  = ['abs_bp_error','abs_g_error','abs_rp_error',
 ########################################################################################################################
 
 
+
 #-- Prior and hyper-parameter -----
-prior = {"variate":"LogNorm",
+prior = {"variate":"Chabrier",
          "Av":"Uniform",
          "Rv":"Gaussian"
         }
@@ -69,6 +70,7 @@ hyper = {"loc_Av":0.0,
          "scl_Av":10.0,
          "loc_Rv":3.1,
          "scl_Rv":0.5,
+         "alpha_Pb":[1,19],
          "beta_sd_b":1.0,
          "beta_sd_m":0.1}
 #------------------------------------
@@ -78,19 +80,17 @@ n_obs_min = 3 # Minimum number of observed bands
 #-------------------------------------------------
 
 #------- Running -------
-iterations = 3000
+iterations = 2000
 walkers_ratio = 4
-burnin_fraction = 0.66667
+burnin_fraction = 0.5
 # Hyper-parameters to generate initial solution
 initial_hyper = {
-        "loc_variate":0.2,
+        "loc_variate":0.1,
         "scl_variate":0.1,
-        "loc_Av":0.05,
-        "scl_Av":0.01,
+        "loc_Av":0.0,
+        "scl_Av":0.1,
         "loc_Rv":3.1,
         "scl_Rv":0.01,
-        "loc_Pb":0.05,
-        "scl_Pb":0.01
         }
 #-----------------------
 
@@ -120,7 +120,7 @@ sakam.load_data(file_data=file_data,
                     errors=uncertainties,
                     nan_threshold=n_obs_min,
                     init_variate=init_variate,
-                    nrows=2)
+                    nrows=1)
 
 sakam.run(iterations=iterations,
             walkers_ratio=walkers_ratio,
