@@ -8,8 +8,8 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 #---------- Input files --------------------------------------------------
-dir_    = "/home/javier/Cumulos/Models/"
-dir_out = "/home/javier/Cumulos/Perseus/Models/"
+dir_    = "/home/jolivares/Cumulos/Models/"
+dir_out = "/home/jolivares/Cumulos/Perseus/Models/"
 
 variate = "Mass" #"Luminosity"
 
@@ -73,7 +73,7 @@ stol_v2c = 0.5
 stol_c2v = 1e-3
 degspl = int(3)
 steps_bt = 150
-c2v_drop = [2.1,3.3]
+c2v_drop = [2.3,2.4]
 covariates = [
 			"G_BPmag","Gmag"
 			# "Gmag","G_BPmag","G_RPmag", # Gaia
