@@ -9,29 +9,29 @@ from matplotlib.backends.backend_pdf import PdfPages
 
 #---------- Input files --------------------------------------------------
 dir_    = "/home/jolivares/Cumulos/Models/"
-dir_out = "/home/jolivares/Cumulos/Perseus/Models/"
+dir_out = "/home/jolivares/Cumulos/ComaBer/Models/"
 
 variate = "Mass" #"Luminosity"
 
 models  = [
 		{
 		"name":"PARSEC",
-		"file":dir_ + "PARSEC/PARSEC_1-10_Myr_Gaia+2MASS+PanSTARRS.csv",
-		"columns":["age_Myr","Mass","logL",
-					"Gmag","G_BPftmag","G_RPmag", #Gaia
+		"file":dir_ + "PARSEC/Parsec_700_Myr_Gaia+PanSTARRS+2MASS+WISE.csv",
+		"columns":["age_Myr","Mini","logL",
+					"Gmag","G_BPmag","G_RPmag", #Gaia
 					"gP1mag","rP1mag","iP1mag","zP1mag","yP1mag", #PanSTARRS
 					"Jmag","Hmag","Ksmag" #2MASS
 					],
-		"mapper":{"Mass":"Mass", "logL":"Luminosity",
-				"Gmag":"Gmag","G_BPftmag":"G_BPmag","G_RPmag":"G_RPmag", # Gaia
+		"mapper":{"Mini":"Mass", "logL":"Luminosity",
+				"Gmag":"Gmag","G_BPmag":"G_BPmag","G_RPmag":"G_RPmag", # Gaia
 				"gP1mag":"gP1mag","rP1mag":"rP1mag","iP1mag":"iP1mag","zP1mag":"zP1mag","yP1mag":"yP1mag", #PanSTARRS
 				"Jmag":"Jmag","Hmag":"Hmag","Ksmag":"Kmag" # 2MASS
 				},
-		"lower_mass":1.0,"upper_mass":10.0,
+		"lower_mass":1.4,"upper_mass":2.3,
 		},
 		{
 		"name":"MIST",
-		"file":dir_ + "MIST/MIST_1-10_Myr_Gaia+2MASS+PanSTARRS.csv",
+		"file":dir_ + "MIST/MIST_700_Myr_Gaia+2MASS+PanSTARRS+WISE.csv",
 		"columns":["age_Myr","initial_mass","log_L",
 					"Gaia_G_EDR3","Gaia_BP_EDR3","Gaia_RP_EDR3", #Gaia
 					"PS_g","PS_r","PS_i","PS_z","PS_y", #PanSTARRS
@@ -42,7 +42,7 @@ models  = [
 				"PS_g":"gP1mag","PS_r":"rP1mag","PS_i":"iP1mag","PS_z":"zP1mag","PS_y":"yP1mag", #PanSTARRS
 				"2MASS_J":"Jmag","2MASS_H":"Hmag","2MASS_Ks":"Kmag" # 2MASS
 				},
-		"lower_mass":1.0,"upper_mass":10.0,
+		"lower_mass":1.4,"upper_mass":2.3,
 		},
 		{
 		"name":"BT-Settl",
@@ -57,19 +57,19 @@ models  = [
 				"g_p1":"gP1mag","r_p1":"rP1mag","i_p1":"iP1mag","z_p1":"zP1mag","y_p1":"yP1mag", #PanSTARRS
 				"J":"Jmag","H":"Hmag","K":"Kmag" # 2MASS
 				},
-		"lower_mass":0.0,"upper_mass":1.0,
+		"lower_mass":0.0,"upper_mass":1.4,
 		}]
-ages   = [3,5,7,10] # Myr
+ages   = [700] # Myr
 #------------------------------------------------------------------------
 
 #---------- Output file ------------------------------
 base_ = "PMB"
-steps = 5000
+steps = 10000
 file_plot = dir_out + "join.pdf"
 #----------------------------------------------------------
 
 #--------------------- Isochrone -----------------------------------------
-stol_v2c = 0.5
+stol_v2c = 0.7
 stol_c2v = 1e-3
 degspl = int(3)
 steps_bt = 150
@@ -149,6 +149,7 @@ for age in ages:
 							stop=max_variate,num=steps)})
 	#-----------------------------------------------------
 
+
 	#========== Loop over magnitude =======================================
 	tcks_v2c = []
 	tcks_c2v = []
@@ -162,7 +163,7 @@ for age in ages:
 		for g in dfgm.groups:
 			dfg = dfgm.get_group(g)
 			plt.scatter(dfg[variate],dfg[covariate],
-						s=1,zorder=0,label=g)
+						s=3,zorder=0,label=g)
 		#-------------------------------------------
 
 		#======= Interpolate BT-Settl ==========
@@ -193,14 +194,14 @@ for age in ages:
 		tmp = pn.DataFrame(
 			data={"x":np.concatenate((xb,dfa[variate].to_numpy())),
 			      "y":np.concatenate((yb,dfa[covariate].to_numpy()))})
+		tmp.drop_duplicates(subset="x",inplace=True)
 		tmp.sort_values(by="x",inplace=True)
-		#-------------------------------------------------------------- 
+		#--------------------------------------------------------------
 
-
-		#------ Fit spline ------------------------------------------
+		#------ Fit spline -------------------------------------------
 		tck_v2c = splrep(tmp["x"],tmp["y"],
 					xb=min_variate,xe=max_variate,k=degspl,s=stol_v2c)
-		#-----------------------------------------------------------
+		#-------------------------------------------------------------
 
 		#------ Join interpolated results  --------
 		dfo[covariate] = splev(dfo[variate],tck_v2c)
@@ -214,7 +215,6 @@ for age in ages:
 
 		dfc.sort_values(by=covariate,inplace=True)
 
-
 		tck_c2v = splrep(dfc[covariate],dfc[variate],k=degspl,s=stol_c2v)
 		#-------------------------------------------------------------
 
@@ -225,11 +225,11 @@ for age in ages:
 		#--------------------------------------------------------
 
 		# ----- Plot interpolated points ---------------------------
-		plt.scatter(dfo[variate],dfo[covariate],c="black",
-						s=0.1,zorder=1,label="Joint forward")
+		plt.plot(dfo[variate],dfo[covariate],c="black",
+						lw=0.5,zorder=1,label="Joint forward")
 
-		plt.scatter(splev(grid,tck_c2v),grid,c="red",
-						s=0.1,zorder=1,label="Joint backward")
+		# plt.plot(splev(grid,tck_c2v),grid,c="red",
+		# 				lw=0.5,zorder=1,label="Joint backward")
 		# -------------------------------------------------------
 
 		#----- Save -----
@@ -237,6 +237,7 @@ for age in ages:
 		plt.ylabel(covariate)
 		plt.xscale("log")
 		plt.legend(loc="best")
+		plt.gca().invert_yaxis()
 		pdf.savefig()
 		plt.close()
 		#----------------

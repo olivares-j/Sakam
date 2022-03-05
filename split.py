@@ -17,7 +17,7 @@ n_sources = len(df)
 #-----------------------------------------------------------
 
 #---------------- Split data frame --------------------------------
-assert n_sources => size, "There are more processes than sources!"
+assert n_sources >= size, "There are more processes than sources!"
 group_size = int(np.floor(n_sources/size))
 reminder = n_sources % size
 group_size = np.repeat(group_size,size)
