@@ -55,19 +55,19 @@ do
 		#---------------------------------------------------
 
 		#------ Launch global variables file ------
-		python $GLBLS
-		python $STATICS $PKL
+		python -u $GLBLS
+		python -u $STATICS $PKL
 		#-----------------------------------------
 
 
 		#------- Pre processing -----------------------
 		echo "Preprocessing catalogue ..."
-		python $PATH_SKM/preprocess.py $PKL >> $LOG_OUT 2>> $LOG_ERR
+		python -u $PATH_SKM/preprocess.py $PKL >> $LOG_OUT 2>> $LOG_ERR
 		#----------------------------------------------
 
 		#----- Split catalogue -------------------------------------
 		echo "Splitting catalogue ..."
-		python $PATH_SKM/split.py $PKL >> $LOG_OUT 2>> $LOG_ERR
+		python -u $PATH_SKM/split.py $PKL >> $LOG_OUT 2>> $LOG_ERR
 		#-----------------------------------------------------------
 
 		#=========== Loop over parts ======================
@@ -75,7 +75,7 @@ do
 		do
 			echo "Launching part $PRC of $TNP"
 			sed s/XXX/$PRC/g $PATH_SKM/fit.py > $PATH_AGE/tmp.py
-			python $PATH_AGE/tmp.py $PKL >> $LOG_OUT 2>> $LOG_ERR &
+			python -u $PATH_AGE/tmp.py $PKL >> $LOG_OUT 2>> $LOG_ERR &
 			sleep 10
 			rm $PATH_AGE/tmp.py
 		done
@@ -85,7 +85,7 @@ do
 		wait
 
 		#--------- Unify outputs ------------------------------
-		python $PATH_SKM/unify.py $PKL >> $LOG_OUT 2>> $LOG_ERR
+		python -u $PATH_SKM/unify.py $PKL >> $LOG_OUT 2>> $LOG_ERR
 		#------------------------------------------------------
 	done
 done
