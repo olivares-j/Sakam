@@ -58,8 +58,6 @@ df.dropna(thresh=n_obs_min,subset=bands,inplace=True)
 for un in errors:
 	df.loc[:,un] += add_unc
 #----------------------------------------------------------
-
-print("After filtering {0} sources were removed.".format(n_init - len(df)))
 #++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 
@@ -76,5 +74,8 @@ for band,error in zip(bands,errors):
 	df[prefix + error] = df[error] + 5.0*(np.log10(df["upper_distance"])-np.log10(df["lower_distance"]))
 
 df.drop(columns=["lower_distance","mode_distance","upper_distance"],inplace=True)
+#-----------------------------------------------------------------------
+
+print("The filtered data set contains {0} sources.".format(df.shape[0]))
 #----------- Save ---------------------------
 df.to_csv(file_abs)
