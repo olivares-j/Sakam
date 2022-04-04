@@ -12,10 +12,21 @@ dir_plots  = dir_main + "plots/"
 dir_chunks = dir_main + "chunks/"
 file_abs   = dir_main + "Absolute_magnitudes.csv"
 
-bands  = sum([gaia_bands,panstarrs_bands,twomass_bands],[])
-errors = sum([gaia_errors,panstarrs_errors,twomass_errors],[])
-covariates = sum([gaia_covs,panstarrs_covs,twomass_covs],[])
-waves = sum([gaia_waves,panstarrs_waves,twomass_waves],[])
+bands = []
+errors = []
+covariates = []
+waves = []
+for instrument in instruments:
+  bands.append(instrument["observables"])
+  errors.append(instrument["uncertainties"])
+  covariates.append(instrument["covariates"])
+  waves.append(instrument["waves"])
+
+
+bands  = sum(bands,[])
+errors = sum(errors,[])
+covariates = sum(covariates,[])
+waves = sum(waves,[])
 
 observables   = [ prefix + band for band in bands]
 uncertainties = [ prefix + error for error in errors]

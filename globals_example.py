@@ -51,6 +51,29 @@ init_variate = None # Use the initial guess of the value. Otherwise None
 kalkayotl_dimension = 6
 #------------------------------------------------------------------------------------
 
+#------------ Instruments ---------------------------
+instruments = [
+{"name":"Gaia",
+"observables":["bp","g","rp"],
+"uncertainties":["bp_error","g_error","rp_error"],
+"wavelengths":[5335.42, 6422.01, 7739.17],
+"covariates":['G_BPmag','Gmag','G_RPmag']
+},
+{"name":"2MASS",
+"observables":["Jmag","Hmag","Kmag"],
+"uncertainties":["e_Jmag","e_Hmag","e_Kmag"],
+"wavelengths":[12329.79, 16395.59, 21522.05],
+"covariates":['Jmag','Hmag','Kmag']
+},
+{"name":"PanSTARRS",
+"observables":["gmag","rmag","imag","zmag","ymag"],
+"uncertainties":["e_gmag","e_rmag","e_imag","e_zmag","e_ymag"],
+"wavelengths":[4907.71, 6208.38, 7531.06, 8669.70, 9619.44],
+"covariates":['gP1mag','rP1mag','iP1mag','zP1mag','yP1mag']
+}
+]
+#------------------------------------------------------------------
+
 #---------------- Observed photometry  ----------------------------------
 gaia_bands       = ["bp","g","rp"]
 gaia_errors      = ["bp_error","g_error","rp_error"]
