@@ -21,7 +21,13 @@ if kalkayotl_dimension != 1:
 	dst["lower_distance"] = dst[lowers].apply(lambda x: cartesian_distance(*x),axis=1)
 	dst["upper_distance"] = dst[uppers].apply(lambda x: cartesian_distance(*x),axis=1)
 
-	dst.drop(columns=sum([lowers,uppers],[]),inplace=True)
+	dst.drop(columns=sum([lowers,uppers],[]),
+				inplace=True)
+else:
+	dst.rename(columns={"lower":"lower_distance",
+						"upper":"upper_distance",
+						"mean":"mode_distance"},
+				inplace=True)
 #----------------------------------------------------------------------------------
 
 #----------- Load photometry ----------------------------------
