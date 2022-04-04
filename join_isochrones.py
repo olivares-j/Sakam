@@ -8,11 +8,21 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 #---------- Input files --------------------------------------------------
-dir_    = "/home/jolivares/Cumulos/Models/"
-dir_out = "/home/jolivares/Cumulos/ComaBer/Sakam/models/"
+dir_    = "/home/jolivares/OCs/Models/"
+dir_out = "/home/jolivares/OCs/Taurus/Sakam/models/"
 
 variate = "Mass" #"Luminosity"
 ages = [
+	{"value":1,"max_variate":10.0},
+	{"value":2,"max_variate":10.0},
+	{"value":3,"max_variate":10.0},
+	{"value":4,"max_variate":10.0},
+	{"value":5,"max_variate":10.0},
+	{"value":6,"max_variate":10.0},
+	{"value":7,"max_variate":10.0},
+	{"value":8,"max_variate":10.0},
+	{"value":9,"max_variate":10.0},
+	{"value":10,"max_variate":10.0},
 	# {"value":200,"max_variate":3.81},
 	# {"value":300,"max_variate":3.27},
 	# {"value":400,"max_variate":2.94},
@@ -20,24 +30,25 @@ ages = [
 	# {"value":700,"max_variate":2.35},
 	# {"value":800,"max_variate":2.23},
 	# {"value":900,"max_variate":2.14},
-	{"value":1000,"max_variate":2.06}
+	# {"value":1000,"max_variate":2.06}
 	]
 
 models  = [
-		{
-		"name":"PARSEC",
-		"file":dir_ + "PARSEC/Parsec_600-1000_Myr_Gaia+PanSTARRS+2MASS.csv",
-		"columns":["age_Myr","Mini","logL",
-					"Gmag","G_BPmag","G_RPmag", #Gaia
-					"gP1mag","rP1mag","iP1mag","zP1mag","yP1mag", #PanSTARRS
-					"Jmag","Hmag","Ksmag" #2MASS
-					],
-		"mapper":{"Mini":"Mass", "logL":"Luminosity",
-				"Gmag":"Gmag","G_BPmag":"G_BPmag","G_RPmag":"G_RPmag", # Gaia
-				"gP1mag":"gP1mag","rP1mag":"rP1mag","iP1mag":"iP1mag","zP1mag":"zP1mag","yP1mag":"yP1mag", #PanSTARRS
-				"Jmag":"Jmag","Hmag":"Hmag","Ksmag":"Kmag" # 2MASS
-				},
-		"lower_variate":0.13,"upper_variate":10.0},
+		# {
+		# "name":"PARSEC",
+		# "file":dir_ + "PARSEC/Parsec_200-400_Myr_Gaia+PanSTARRS+2MASS.csv",
+		# "columns":["age_Myr","Mini","logL",
+		# 			"Gmag","G_BPmag","G_RPmag", #Gaia
+		# 			"gP1mag","rP1mag","iP1mag","zP1mag","yP1mag", #PanSTARRS
+		# 			"Jmag","Hmag","Ksmag" #2MASS
+		# 			],
+		# "mapper":{"Mini":"Mass", "logL":"Luminosity",
+		# 		"Gmag":"Gmag","G_BPmag":"G_BPmag","G_RPmag":"G_RPmag", # Gaia
+		# 		"gP1mag":"gP1mag","rP1mag":"rP1mag","iP1mag":"iP1mag","zP1mag":"zP1mag","yP1mag":"yP1mag", #PanSTARRS
+		# 		"Jmag":"Jmag","Hmag":"Hmag","Ksmag":"Kmag" # 2MASS
+		# 		},
+		# # "lower_variate":0.0,"upper_variate":10.0},
+		# "lower_variate":1.4,"upper_variate":10.0},
 		# {
 		# "name":"MIST",
 		# "file":dir_ + "MIST/MIST_{0}_Myr_Gaia+2MASS+PanSTARRS+WISE.csv".format(age),
@@ -65,7 +76,26 @@ models  = [
 		# 		"g_p1":"gP1mag","r_p1":"rP1mag","i_p1":"iP1mag","z_p1":"zP1mag","y_p1":"yP1mag", #PanSTARRS
 		# 		"J":"Jmag","H":"Hmag","K":"Kmag" # 2MASS
 		# 		},
-		# "lower_variate":0.0,"upper_variate":0.14}
+		# # "lower_variate":0.0,"upper_variate":10.0}
+		# "lower_variate":0.0,"upper_variate":1.4}
+
+		{
+		"name":"BT-Cond",
+		"file":dir_ + "BT-Cond/2MASS+Gaia+Subaru+UKIDSS.csv",
+		"columns":["Age/Myr","M/Ms","L/Ls",
+					"G","G_BP","G_RP", #Gaia
+					"g","r","i","z","Y", #Subaru
+					"J","H","K", #2MASS
+					"y" #UKIDSS
+					],
+		"mapper":{"M/Ms":"Mass","L/Ls":"Luminosity",
+				"G":"Gmag","G_BP":"G_BPmag","G_RP":"G_RPmag", # Gaia
+				"g":"gmag","r":"rmag","i":"imag","z":"zmag","Y":"Ymag", #Subaru
+				"y":"Ymag_ukidss", #UKIDSS
+				"J":"Jmag","H":"Hmag","K":"Kmag" # 2MASS
+				},
+		"lower_variate":0.0,"upper_variate":10.0}
+		# "lower_variate":0.0,"upper_variate":1.4}
 		]
 
 cmds = [
@@ -76,7 +106,7 @@ cmds = [
 #------------------------------------------------------------------------
 
 #---------- Output file ------------------------------
-base_ = "P"
+base_ = "BT-Cond"
 steps_out = 1000
 steps_int = 1000
 file_v2c = dir_out + base_+"_{0}_Myr_relations.pdf"
@@ -84,13 +114,15 @@ file_cmd = dir_out + base_+"_{0}_Myr_cmds.pdf"
 #----------------------------------------------------------
 
 #--------------------- Isochrone -----------------------------------------
-stol_v2c = 5e-2
+stol_v2c = 1e-2
 stol_c2v = 1e-3
 degspl = int(3)
 c2v_drop = [2.3,2.4]
 covariates = [
 			"Gmag","G_BPmag","G_RPmag", # Gaia
-			"gP1mag","rP1mag","iP1mag","zP1mag","yP1mag", #PanSTARRS
+			# "gP1mag","rP1mag","iP1mag","zP1mag","yP1mag", #PanSTARRS
+			"gmag","rmag","imag","zmag","Ymag", #PanSTARRS
+			"Ymag_ukidss", #UKIDSS
 			"Jmag","Hmag","Kmag" # 2MASS
 			  ]
 #----------------------------------------------------------------------
@@ -107,17 +139,17 @@ for model in models:
 	#---------------------------------------------------------
 
 	#------- Ages to integers ------------------
-	tmp["age_Myr"] = tmp["age_Myr"].astype(int)
+	tmp["Age/Myr"] = tmp["Age/Myr"].astype(int)
 	#-------------------------------------------
 
 	#-------- Drop ages -------------------------------------------
-	tmp.drop(tmp[~np.isin(tmp["age_Myr"],
+	tmp.drop(index=tmp.loc[~np.isin(tmp["Age/Myr"],
 				[a["value"] for a in ages])].index,
 				inplace=True)
 	#--------------------------------------------------------------
 
 	#-------- Drop masses outside limit ---------------------------------
-	tmp.drop(tmp[(tmp[variate] > model["upper_variate"]) | 
+	tmp.drop(index=tmp.loc[(tmp[variate] > model["upper_variate"]) | 
 				 (tmp[variate] < model["lower_variate"])].index,inplace=True)
 	#--------------------------------------------------------------------
 
@@ -134,7 +166,7 @@ dfm.sort_values(by=variate,inplace=True)
 
 #================ Loop over ages ================================================
 #------ Group by ages ------------------
-dfga = dfm.groupby(by="age_Myr")
+dfga = dfm.groupby(by="Age/Myr")
 #-----------------------------------------
 
 for age in ages:
@@ -143,13 +175,13 @@ for age in ages:
 	pdf_cmd = PdfPages(file_cmd.format(age["value"]))
 	#------------------------
 
-	#--- Get age data --------
+	#--- Get age data -----------------
 	dfa = dfga.get_group(age["value"])
-	#-------------------------
+	#----------------------------------
 
-	#-------- Drop masses outside limit ---------------------------------
-	dfa.drop(dfa[dfa[variate] > age["max_variate"]].index,inplace=True)
-	#--------------------------------------------------------------------
+	#-------- Drop masses outside limit -------------
+	dfa = dfa.loc[dfa[variate] < age["max_variate"]]
+	#------------------------------------------------
 
 	#---------- Min Max --------------
 	max_variate  = dfa[variate].max()
@@ -238,6 +270,7 @@ for age in ages:
 		ax2.plot(dfo[variate],splev(dfo[variate],tck_v2c,der=1),
 						c="black",lw=0.5,zorder=1)
 		#--------------------------------------------------------
+		
 
 
 		#========== Inverted relation ===================================
@@ -282,7 +315,6 @@ for age in ages:
 		tcks_v2c.append(tck_v2c)
 		tcks_c2v.append(tck_c2v)
 		#-------------------------
-
 
 	#=====================================================================
 
