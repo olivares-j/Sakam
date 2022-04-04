@@ -20,7 +20,7 @@ for instrument in instruments:
   bands.append(instrument["observables"])
   errors.append(instrument["uncertainties"])
   covariates.append(instrument["covariates"])
-  waves.append(instrument["waves"])
+  waves.append(instrument["wavelengths"])
 
 
 bands  = sum(bands,[])
