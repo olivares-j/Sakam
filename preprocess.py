@@ -77,7 +77,7 @@ for band,error in zip(bands,errors):
 		df[error].iloc[idx] = 0.1
 
 	df[prefix + band]  = df[band]  - 5.0*np.log10(df["mode_distance"])+5.
-	df[prefix + error] = df[error] + 5.0*(np.log10(df["upper_distance"])-np.log10(df["lower_distance"]))
+	df[prefix + error] = df[error] + 5.0*np.abs(np.log10(df["upper_distance"])-np.log10(df["lower_distance"]))
 
 df.drop(columns=["lower_distance","mode_distance","upper_distance"],inplace=True)
 #-----------------------------------------------------------------------
