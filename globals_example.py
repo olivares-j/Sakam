@@ -21,6 +21,11 @@ models = ["PMB"]
 model = "XXX"
 #----------------------------------------------------
 
+#------ Isochrone --------
+variate      = "Mass"
+max_variate  = 10.0
+#------------------------
+
 #-------------- Directories ----------------------------------
 dir_sakam  = "/home/javier/Repositories/Sakam"
 dir_models = "/home/javier/Cumulos/Perseus/Models/"
@@ -34,7 +39,7 @@ file_globals   = dir_main + name_globals
 #--------------------------------------------
 
 #---------- Input files --------------------------------------------------
-file_isochrone  = dir_models + model + "_" + age + "Myr.csv"
+file_isochrone  = dir_models + model + "_" + age + "_Myr_{0}.csv".format(variate)
 file_photometry = dir_base   + "members+2MASS+PanSTARRS.csv"
 file_distances  = dir_base   + "Kalkayotl/Sources_statistics.csv"
 #------------------------------------------------------------------------
@@ -73,29 +78,6 @@ instruments = [
 }
 ]
 #------------------------------------------------------------------
-
-#---------------- Observed photometry  ----------------------------------
-gaia_bands       = ["bp","g","rp"]
-gaia_errors      = ["bp_error","g_error","rp_error"]
-twomass_bands    = ["Jmag","Hmag","Kmag"]
-twomass_errors   = ["e_Jmag","e_Hmag","e_Kmag"]
-panstarrs_bands  = ["gmag","rmag","imag","zmag","ymag"]
-panstarrs_errors = ["e_gmag","e_rmag","e_imag","e_zmag","e_ymag"]
-#-------------------------------------------------------------------------
-
-#--------------------- Isochrone -----------------------------------------
-variate      = "Mass"
-max_variate  = 10.0
-# THe following are the covariates in the isochrone
-# !!!!!! KEEP THE SAME ORDER AS IN OBSERVED PHOTOMETRY !!!!!!!!!!!!!
-gaia_covs      = ['G_BPmag','Gmag','G_RPmag',]
-twomass_covs   = ['Jmag','Hmag','Kmag']
-panstarrs_covs = ['gP1mag','rP1mag','iP1mag','zP1mag','yP1mag']
-# Effective wave lengths  
-gaia_waves     = [5335.42, 6422.01, 7739.17]
-twomass_waves  = [12329.79, 16395.59, 21522.05]
-panstarrs_waves= [4907.71, 6208.38, 7531.06, 8669.70, 9619.44] #6395.40]
-#----------------------------------------------------------------------
 
 #------ Preprocessing ------------------------------
 nan_values = 99.0

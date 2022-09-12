@@ -35,11 +35,11 @@ pht = pd.read_csv(file_photometry,usecols=columns_photometry)
 pht.set_index(identifier,inplace=True)
 #--------------------------------------------------------------
 
-#--------- Join -----------------------
+#--------- Join -------------------------------------------
 df = pht.join(dst,on=identifier)
 n_init = len(df)
 print("The data set contains {0} sources.".format(n_init))
-#--------------------------------------
+#----------------------------------------------------------
 
 #+++++++++++++++++++ Filter data ++++++++++++++++++++++++++
 #---- Set as NaN the BP values larger than limit_BP -------
