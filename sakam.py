@@ -83,7 +83,7 @@ class posterior_variate:
         elif prior["variate"] == "Chabrier":
             # Chabrier 2004, Eq. 2
             prior_Ms = BrokenPrior(components=[LogNormalPrior(np.log(0.25), 0.55 * np.log(10)),
-                                               PowerLawPrior(-2.35, (1.0, 100.0))], 
+                                               PowerLawPrior(-1.35, (1.0, 100.0))], 
                                    breakpoints=[1.0], 
                                    bounds=[min_variate,max_variate])
         else:
@@ -95,6 +95,8 @@ class posterior_variate:
             prior_Av   = st.gamma(a=hyper["loc_Av"],scale=hyper["scl_Av"])
         elif prior["Av"] == "Uniform":
             prior_Av   = st.uniform(loc=hyper["loc_Av"],scale=hyper["scl_Av"])
+        elif prior["Av"] == "Gaussian":
+            prior_Av   = st.norm(loc=hyper["loc_Av"],scale=hyper["scl_Av"])
         else:
             sys.exit("Incorrect prior distribution")
         #------------------------------------------------------------------------
