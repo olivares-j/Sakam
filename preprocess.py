@@ -35,6 +35,10 @@ pht = pd.read_csv(file_photometry,usecols=columns_photometry)
 pht.set_index(identifier,inplace=True)
 #--------------------------------------------------------------
 
+#---------- Replace nan -----------------------------
+pht.replace(nan_values,np.nan,inplace=True)
+#----------------------------------------------------
+
 #--------- Join -------------------------------------------
 df = pht.join(dst,on=identifier)
 n_init = len(df)
@@ -43,7 +47,7 @@ print("The data set contains {0} sources.".format(n_init))
 
 #+++++++++++++++++++ Filter data ++++++++++++++++++++++++++
 #---- Set as NaN the BP values larger than limit_BP -------
-if label_BP is not None:
+if label_BP in bands and label_BP is not None:
 	idx = np.where(df[label_BP] > limit_BP)[0]
 	if len(idx) > 0:
 		df.loc[df.iloc[idx].index,label_BP] = np.nan
